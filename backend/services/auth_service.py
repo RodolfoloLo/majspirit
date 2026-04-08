@@ -5,7 +5,6 @@ from backend.core.security import create_access_token, hash_password, verify_pas
 from backend.repositories.user_repo import UserRepo
 from backend.schemas.auth import LoginReq, RegisterReq, TokenResp
 
-
 class AuthService:
     def __init__(self, db: AsyncSession):
         self.repo = UserRepo(db)
