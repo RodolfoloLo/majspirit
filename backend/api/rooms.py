@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_current_user
@@ -10,6 +10,7 @@ from backend.services.room_service import RoomService
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
+#查看房间列表
 @router.get("")
 async def list_rooms(
     page: int = Query(1, ge=1),
@@ -37,13 +38,13 @@ async def list_rooms(
     })
 
 @router.get("/{room_id}")
-async def get_room_detail(room_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def get_room_detail(
+    room_id: int, 
+    db: AsyncSession = Depends(get_db), 
+    user=Depends(get_current_user)
+):
     service = RoomService(db)
-    room = await service.get_room(room_id)
-    if not room:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="room not found")
-
-    players = await service.repo.list_players(room_id)
+    room, players = await service.get_room_with_players(room_id)
     return ok({
         "room_id": room.id,
         "name": room.name,
@@ -79,37 +80,30 @@ async def join_room(
     user=Depends(get_current_user)
 ):
     service = RoomService(db)
-    try:
-        rp = await service.join_room(room_id, user.id, payload.seat)
-        return ok({"room_id": room_id, "user_id": rp.user_id, "seat": rp.seat})
-    except ValueError as exc:
-        detail = str(exc)
-        status_code = status.HTTP_409_CONFLICT if detail in {"room is full", "already in room", "seat occupied"} else status.HTTP_400_BAD_REQUEST
-        raise HTTPException(status_code=status_code, detail=detail)
+    rp = await service.join_room(room_id, user.id, payload.seat)
+    return ok({"room_id": room_id, "user_id": rp.user_id, "seat": rp.seat})
 
 
 @router.post("/{room_id}/ready")
-async def ready_room(room_id: int, payload: RoomReadyReq, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def ready_room(
+    room_id: int, 
+    payload: RoomReadyReq, 
+    db: AsyncSession = Depends(get_db), 
+    user=Depends(get_current_user)
+):
     service = RoomService(db)
-    try:
-        await service.set_ready(room_id, user.id, payload.ready)
-        return ok({"room_id": room_id, "ready": payload.ready})
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    await service.set_ready(room_id, user.id, payload.ready)
+    return ok({"room_id": room_id, "ready": payload.ready})
 
 
 @router.post("/{room_id}/start")
-async def start_room(room_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def start_room(
+    room_id: int, 
+    db: AsyncSession = Depends(get_db), 
+    user=Depends(get_current_user)
+    ):
     service = RoomService(db)
-    room = await service.get_room(room_id)
-    if not room:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="room not found")
-    if room.owner_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="only owner can start")
-
-    can_start = await service.can_start(room_id)
-    if not can_start:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="room cannot start")
+    await service.start_room(room_id, user.id)
     return ok({"room_id": room_id, "started": True})
 
 @router.post("/{room_id}/leave")
@@ -119,10 +113,5 @@ async def leave_room(
     user=Depends(get_current_user)
     ):
     service = RoomService(db)
-    try:
-        await service.leave_room(room_id, user.id)
-        return ok({"room_id": room_id, "user_id": user.id, "left": True})
-    except ValueError as exc:
-        detail = str(exc)
-        status_code = status.HTTP_404_NOT_FOUND if detail == "room not found" else status.HTTP_400_BAD_REQUEST
-        raise HTTPException(status_code=status_code, detail=detail)
+    await service.leave_room(room_id, user.id)
+    return ok({"room_id": room_id, "user_id": user.id, "left": True})

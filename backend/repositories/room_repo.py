@@ -9,18 +9,6 @@ class RoomRepo:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_room(self, name: str, owner_id: int, max_players: int = 4) -> Room:
-        room = Room(name=name, owner_id=owner_id, max_players=max_players)
-        self.db.add(room)
-        await self.db.commit()
-        await self.db.refresh(room)
-        return room
-
-    async def get_room(self, room_id: int) -> Room | None:
-        stmt = select(Room).where(Room.id == room_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def list_rooms(self, page: int, size: int, status: str | None = None) -> list[Room]:
         stmt = select(Room)
         if status:
@@ -29,10 +17,22 @@ class RoomRepo:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_room(self, room_id: int) -> Room | None:
+        stmt = select(Room).where(Room.id == room_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_room(self, name: str, owner_id: int, max_players: int = 4) -> Room:
+        room = Room(name=name, owner_id=owner_id, max_players=max_players)
+        self.db.add(room)
+        await self.db.flush()
+        await self.db.refresh(room)
+        return room
+
     async def add_player(self, room_id: int, user_id: int, seat: int) -> RoomPlayer:
         rp = RoomPlayer(room_id=room_id, user_id=user_id, seat=seat)
         self.db.add(rp)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(rp)
         return rp
 
@@ -51,15 +51,8 @@ class RoomRepo:
 
     async def update_ready(self, room_player: RoomPlayer, ready: bool) -> None:
         room_player.ready = ready
-        await self.db.commit()
 
-    async def delete_player(self, room_id: int, user_id: int) -> None:
-        stmt = select(RoomPlayer).where(
-            RoomPlayer.room_id == room_id,
-            RoomPlayer.user_id == user_id,
-        )
-        result = await self.db.execute(stmt)
-        rp = result.scalar_one_or_none()
-        if rp:
-            await self.db.delete(rp)
-            await self.db.commit()
+    async def delete_player(self, room_player: RoomPlayer) -> None:
+        await self.db.delete(room_player)
+
+#flush()+refresh()组合作用是将新创建的对象持久化到数据库并刷新其状态以获取数据库生成的字段（如自增ID）。如果不调用flush()，对象不会被写入数据库，refresh()也无法获取到生成的ID等字段。

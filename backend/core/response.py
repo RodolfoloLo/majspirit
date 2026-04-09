@@ -1,9 +1,10 @@
 from typing import Any
+from fastapi.responses import JSONResponse
 
 from backend.core.request_context import get_request_id
 
 
-def ok(data: Any = None, message: str = "ok") -> dict[str, Any]:
+def ok(data: Any = None, message: str = "ok") -> JSONResponse:
     payload: dict[str, Any] = {
         "code": 0,
         "message": message,
@@ -12,7 +13,7 @@ def ok(data: Any = None, message: str = "ok") -> dict[str, Any]:
     request_id = get_request_id()
     if request_id:
         payload["request_id"] = request_id
-    return payload
+    return JSONResponse(content=payload)
 
 
 def fail(code: int, message: str, data: Any = None) -> dict[str, Any]:

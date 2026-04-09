@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from backend.exceptions.business import BusinessError
 from backend.core.response import fail
 
 
@@ -39,8 +40,14 @@ def _status_to_business_code(status_code: int) -> int:
     }
     return mapping.get(status_code, 50001)
 
-
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(BusinessError)
+    async def handle_business_error(_: Request, exc: BusinessError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.http_status,
+            content=fail(code=exc.code, message=exc.message),
+        )
+
     @app.exception_handler(StarletteHTTPException)
     async def handle_starlette_http_exception(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         message = exc.detail if isinstance(exc.detail, str) else _default_message(exc.status_code)
