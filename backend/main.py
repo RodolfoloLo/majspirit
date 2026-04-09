@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.health import router as health_router
 from backend.api.auth import router as auth_router
 from backend.api.rooms import router as rooms_router
+from backend.api.ws import router as ws_router
 from backend.core.config import settings
 from backend.core.exceptions import register_exception_handlers
 from backend.core.request_context import set_request_id
@@ -37,7 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(rooms_router, prefix="/api/v1")
-
+    app.include_router(ws_router, prefix="/api/v1")
     return app
 
 
