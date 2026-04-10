@@ -10,13 +10,11 @@ from backend.ws.events import GAME_DISCARDED, GAME_MATCH_END, GAME_ROUND_END, GA
 
 class GameService:
     def __init__(self):
-        self._game_id_counter = count(9001)
-        self._match_id_counter = count(5001)
-        self._games: dict[int, dict] = {}
+        self._game_id_counter = count(9001) #游戏ID生成器，从9001开始递增
+        self._match_id_counter = count(5001) #比赛ID生成器，从5001开始递增
+        self._games: dict[int, dict] = {} #游戏状态存储，键为game_id，值为游戏状态的字典(包含玩家信息、牌墙、当前回合等)
 
-    def _next_seat(self, seat: int) -> int:
-        return (seat + 1) % 4
-
+    #创建游戏
     def create_game(self, room_id: int, players: list[RoomPlayer]) -> dict:
         sorted_players = sorted(players, key=lambda p: p.seat)
         if not sorted_players:
@@ -77,11 +75,54 @@ class GameService:
         self._games[game_id] = state
         return {"game_id": game_id, "match_id": match_id}
 
-    def _require_game(self, game_id: int) -> dict:
+    def get_state(self, game_id: int, user_id: int | None = None) -> dict:
+        state = self.require_game(game_id)
+        players = []
+        for seat in sorted(state["players"].keys()):
+            p = state["players"][seat]
+            players.append(
+                {
+                    "seat": seat,
+                    "user_id": p["user_id"],
+                    "is_bot": p["is_bot"],
+                    "nickname": p["nickname"],
+                    "hand_count": len(p["hand"]),
+                    "discards": p["discards"],
+                }
+            )
+
+        my_hand = None
+        my_seat = None
+        if user_id is not None:
+            my_seat = self._seat_of_user(state, user_id)
+            if my_seat is not None:
+                my_hand = state["players"][my_seat]["hand"]
+
+        return {
+            "game_id": state["game_id"],
+            "match_id": state["match_id"],
+            "round_index": state["round_index"],
+            "dealer_seat": state["dealer_seat"],
+            "turn_seat": state["turn_seat"],
+            "wall_remaining": len(state["wall"]),
+            "status": state["status"],
+            "scores": state["scores"],
+            "players": players,
+            "my_seat": my_seat,
+            "my_hand": my_hand,
+            "pending_ron": state["pending_ron"],
+            "last_discard": state["last_discard"],
+        }
+
+    #获取游戏状态
+    def require_game(self, game_id: int) -> dict:
         state = self._games.get(game_id)
         if not state:
             raise GameNotFound()
         return state
+
+    def _next_seat(self, seat: int) -> int:
+        return (seat + 1) % 4
 
     def _seat_of_user(self, state: dict, user_id: int) -> int | None:
         for seat, payload in state["players"].items():
@@ -373,44 +414,6 @@ class GameService:
         result["turn_seat"] = state["turn_seat"]
         return result
 
-    def get_state(self, game_id: int, user_id: int | None = None) -> dict:
-        state = self._require_game(game_id)
-        players = []
-        for seat in sorted(state["players"].keys()):
-            p = state["players"][seat]
-            players.append(
-                {
-                    "seat": seat,
-                    "user_id": p["user_id"],
-                    "is_bot": p["is_bot"],
-                    "nickname": p["nickname"],
-                    "hand_count": len(p["hand"]),
-                    "discards": p["discards"],
-                }
-            )
-
-        my_hand = None
-        my_seat = None
-        if user_id is not None:
-            my_seat = self._seat_of_user(state, user_id)
-            if my_seat is not None:
-                my_hand = state["players"][my_seat]["hand"]
-
-        return {
-            "game_id": state["game_id"],
-            "match_id": state["match_id"],
-            "round_index": state["round_index"],
-            "dealer_seat": state["dealer_seat"],
-            "turn_seat": state["turn_seat"],
-            "wall_remaining": len(state["wall"]),
-            "status": state["status"],
-            "scores": state["scores"],
-            "players": players,
-            "my_seat": my_seat,
-            "my_hand": my_hand,
-            "pending_ron": state["pending_ron"],
-            "last_discard": state["last_discard"],
-        }
 
     def get_available_actions(self, game_id: int, user_id: int) -> dict:
         state = self._require_game(game_id)

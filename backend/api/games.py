@@ -15,8 +15,8 @@ from backend.ws.manager import ws_manager
 
 router = APIRouter(prefix="/games", tags=["games"])
 
-
-async def _broadcast_game_events(event_data: dict) -> None:
+#函数作用：广播游戏事件 打牌/和牌接口需要调用
+async def broadcast_game_events(event_data: dict) -> None:
     events = event_data.get("events") or [event_data]
     ts = datetime.now(timezone.utc).isoformat()
     for item in events:
@@ -28,8 +28,8 @@ async def _broadcast_game_events(event_data: dict) -> None:
             }
         )
 
-
-async def _persist_if_match_end(game_id: int, db: AsyncSession) -> None:
+#函数作用: 检查游戏结束
+async def persist_if_match_end(game_id: int, db: AsyncSession) -> None:
     if not game_service.is_match_finished(game_id):
         return
     if game_service.is_persisted(game_id):
@@ -39,19 +39,19 @@ async def _persist_if_match_end(game_id: int, db: AsyncSession) -> None:
     await HistoryService(db).save_match_result(summary)
     game_service.mark_persisted(game_id)
 
-
+#获取游戏状态接口
 @router.get("/{game_id}/state")
 async def game_state(game_id: int, user=Depends(get_current_user)):
     payload = game_service.get_state(game_id=game_id, user_id=user.id)
     return ok(payload)
 
-
+#获取可用操作接口
 @router.get("/{game_id}/actions/available")
 async def available_actions(game_id: int, user=Depends(get_current_user)):
     payload = game_service.get_available_actions(game_id=game_id, user_id=user.id)
     return ok(payload)
 
-
+#打牌接口
 @router.post("/{game_id}/actions/discard")
 async def discard(
     game_id: int,
@@ -60,37 +60,37 @@ async def discard(
     user=Depends(get_current_user),
 ):
     event_data = game_service.discard(game_id=game_id, user_id=user.id, tile=payload.tile)
-    await _persist_if_match_end(game_id, db)
-    await _broadcast_game_events(event_data)
+    await persist_if_match_end(game_id, db)
+    await broadcast_game_events(event_data)
     return ok(event_data)
 
-
+#摸牌接口
 @router.post("/{game_id}/actions/draw")
 async def draw(game_id: int, user=Depends(get_current_user)):
     _ = game_id
     _ = user
     game_service.action_not_available()
 
-
+#自摸接口
 @router.post("/{game_id}/actions/tsumo")
 async def tsumo(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.tsumo(game_id=game_id, user_id=user.id)
-    await _persist_if_match_end(game_id, db)
-    await _broadcast_game_events(event_data)
+    await persist_if_match_end(game_id, db)
+    await  broadcast_game_events(event_data)
     return ok(event_data)
 
-
+#荣和接口
 @router.post("/{game_id}/actions/ron")
 async def ron(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.ron(game_id=game_id, user_id=user.id)
-    await _persist_if_match_end(game_id, db)
-    await _broadcast_game_events(event_data)
+    await persist_if_match_end(game_id, db)
+    await broadcast_game_events(event_data)
     return ok(event_data)
 
-
+#过牌接口
 @router.post("/{game_id}/actions/pass")
 async def pass_action(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.pass_action(game_id=game_id, user_id=user.id)
-    await _persist_if_match_end(game_id, db)
-    await _broadcast_game_events(event_data)
+    await persist_if_match_end(game_id, db)
+    await broadcast_game_events(event_data)
     return ok(event_data)

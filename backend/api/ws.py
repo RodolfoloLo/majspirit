@@ -27,23 +27,26 @@ async def ws_endpoint(ws: WebSocket):
         return
 
     await ws_manager.connect(user_id, ws)#认证通过,建立连接
+    #只是 向所有在线用户广播一条用户上线的消息.
     await ws_manager.broadcast(
         {
             "type": USER_ONLINE,
             "ts": datetime.now(timezone.utc).isoformat(),
             "data": {"user_id": user_id},
         }
-    )#连接建立后，向所有在线用户广播该用户上线的消息
+    )
 
     #连接建立后，服务端进入循环，持续监听客户端发来的消息：
     try:
         while True:
+            #消息解析逻辑:先尝试把收到的raw用json.loads解析成字典,如果解析成功,就从字典里拿拿"type"字段作为msg_type
             raw = await ws.receive_text()
             msg_type = raw
             try:
                 parsed = json.loads(raw)
                 if isinstance(parsed, dict):
                     msg_type = parsed.get("type", raw)
+            #如果解析失败:(比如客户端发的是纯文本ping),就直接用原始内容作为msg_type
             except json.JSONDecodeError:
                 pass
 
@@ -55,6 +58,7 @@ async def ws_endpoint(ws: WebSocket):
                         "data": "pong",
                     }
                 )
+    #连接断开的处理
     except WebSocketDisconnect:
         ws_manager.disconnect(user_id, ws)
         await ws_manager.broadcast(
@@ -64,3 +68,14 @@ async def ws_endpoint(ws: WebSocket):
                 "data": {"user_id": user_id},
             }
         )
+
+#这个文件的作用就是建立WebSocket连接,至于建立连接之后的消息处理逻辑,在其他文件实现.
+
+#WebSocket连接时使用的URL是ws://127.0.0.1:8000/api/v1/ws?token=<JWT>
+#通用消息结构为:
+#{
+#    "type": "event_type",
+#    "ts": "2007-01-15T00:00:00Z",
+#    "request_id": "optional-client-message-id",
+#    "data": {...}
+#}
