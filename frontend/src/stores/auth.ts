@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-import { getMe, login, register } from "../api/auth";
+import { getMe, login, logout as logoutApi, register } from "../api/auth";
 import { extractErrorMessage } from "../lib/error";
 import { clearStoredToken, getStoredToken, setStoredToken } from "../lib/token";
 import type { TokenResponse, UserProfile } from "../types/api";
@@ -38,7 +38,7 @@ export const useAuthStore = defineStore("auth", {
       try {
         this.user = await getMe();
       } catch {
-        this.logout();
+        await this.logout();
       }
     },
 
@@ -71,7 +71,14 @@ export const useAuthStore = defineStore("auth", {
       this.user = await getMe();
     },
 
-    logout() {
+    async logout() {
+      try {
+        if (this.token) {
+          await logoutApi();
+        }
+      } catch {
+        // Ignore logout API errors and clear local auth state anyway.
+      }
       this.token = "";
       this.user = null;
       clearStoredToken();

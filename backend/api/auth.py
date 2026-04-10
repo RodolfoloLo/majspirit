@@ -29,3 +29,9 @@ async def login(payload: LoginReq, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def me(user=Depends(get_current_user)):
     return ok(UserResp.model_validate(user).model_dump())
+
+
+@router.post("/logout")
+async def logout(user=Depends(get_current_user)):
+    _ = user
+    return ok({"logged_out": True})

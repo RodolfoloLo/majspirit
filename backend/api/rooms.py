@@ -103,8 +103,8 @@ async def start_room(
     user=Depends(get_current_user)
     ):
     service = RoomService(db)
-    await service.start_room(room_id, user.id)
-    return ok({"room_id": room_id, "started": True})
+    game_meta = await service.start_room(room_id, user.id)
+    return ok({"room_id": room_id, "started": True, **game_meta})
 
 @router.post("/{room_id}/leave")
 async def leave_room(

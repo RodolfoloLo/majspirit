@@ -14,6 +14,10 @@ async function postWithFallback<T>(paths: string[], payload: unknown): Promise<T
       return await unwrap<T>(http.post(path, payload));
     } catch (error) {
       lastError = error;
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status !== 404) {
+        throw error;
+      }
     }
   }
   throw lastError ?? new Error("请求失败");
@@ -26,6 +30,10 @@ async function getWithFallback<T>(paths: string[]): Promise<T> {
       return await unwrap<T>(http.get(path));
     } catch (error) {
       lastError = error;
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status !== 404) {
+        throw error;
+      }
     }
   }
   throw lastError ?? new Error("请求失败");
@@ -41,4 +49,8 @@ export async function login(payload: LoginOrRegisterPayload): Promise<TokenRespo
 
 export async function getMe(): Promise<UserProfile> {
   return getWithFallback<UserProfile>(["/auth/me", "/me"]);
+}
+
+export async function logout(): Promise<{ logged_out?: boolean }> {
+  return postWithFallback<{ logged_out?: boolean }>(["/auth/logout", "/logout"], {});
 }

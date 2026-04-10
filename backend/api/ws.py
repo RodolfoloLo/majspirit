@@ -1,14 +1,13 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.services.ws_service import parse_user_id_from_token
 from backend.ws.events import HEARTBEAT, USER_OFFLINE, USER_ONLINE
-from backend.ws.manager import WSManager
+from backend.ws.manager import ws_manager
 
-router = APIRouter()
-
-manager = WSManager()
+router = APIRouter(tags=["ws"])
 
 
 @router.websocket("/ws")
@@ -27,8 +26,8 @@ async def ws_endpoint(ws: WebSocket):
         await ws.close(code=4401)
         return
 
-    await manager.connect(user_id, ws)#认证通过,建立连接
-    await manager.broadcast(
+    await ws_manager.connect(user_id, ws)#认证通过,建立连接
+    await ws_manager.broadcast(
         {
             "type": USER_ONLINE,
             "ts": datetime.now(timezone.utc).isoformat(),
@@ -39,8 +38,16 @@ async def ws_endpoint(ws: WebSocket):
     #连接建立后，服务端进入循环，持续监听客户端发来的消息：
     try:
         while True:
-            msg = await ws.receive_text()
-            if msg == "ping":
+            raw = await ws.receive_text()
+            msg_type = raw
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    msg_type = parsed.get("type", raw)
+            except json.JSONDecodeError:
+                pass
+
+            if msg_type in {"ping", "heartbeat.ping"}:
                 await ws.send_json(
                     {
                         "type": HEARTBEAT,
@@ -49,8 +56,8 @@ async def ws_endpoint(ws: WebSocket):
                     }
                 )
     except WebSocketDisconnect:
-        manager.disconnect(user_id, ws)
-        await manager.broadcast(
+        ws_manager.disconnect(user_id, ws)
+        await ws_manager.broadcast(
             {
                 "type": USER_OFFLINE,
                 "ts": datetime.now(timezone.utc).isoformat(),

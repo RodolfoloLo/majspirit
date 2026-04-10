@@ -1,4 +1,3 @@
-import json
 from collections import defaultdict
 
 from fastapi import WebSocket
@@ -28,13 +27,15 @@ class WSManager:
         dead = []
         for ws in sockets:
             try:
-                await ws.send_text(json.dumps(payload, ensure_ascii=False))
+                await ws.send_json(payload)
             except Exception:
                 dead.append(ws)
         for ws in dead:
             self.disconnect(user_id, ws)
-    
-    #broadcast() 方法用于向所有在线用户发送消息。它接受一个 payload 字典作为参数，遍历 user_sockets 字典中的每个用户ID，并调用 send_to_user() 方法将消息发送给该用户的所有连接。
+
     async def broadcast(self, payload: dict):
         for user_id in list(self.user_sockets.keys()):
             await self.send_to_user(user_id, payload)
+
+
+ws_manager = WSManager()

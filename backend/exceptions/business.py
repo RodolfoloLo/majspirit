@@ -65,3 +65,33 @@ class OnlyOwnerCanStart(BusinessError):
 class RoomCannotStart(BusinessError):
     def __init__(self):
         super().__init__(code=40002, message="room cannot start", http_status=400)
+
+
+class GameNotFound(BusinessError):
+    def __init__(self):
+        super().__init__(code=40402, message="game not found", http_status=404)
+
+
+class NotYourTurn(BusinessError):
+    def __init__(self):
+        super().__init__(code=40905, message="not your turn", http_status=409)
+
+
+class InvalidTile(BusinessError):
+    def __init__(self):
+        super().__init__(code=40003, message="invalid tile", http_status=400)
+
+
+class ActionNotAvailable(BusinessError):
+    def __init__(self):
+        super().__init__(code=40906, message="action not available", http_status=409)
+
+
+class HistoryNotReady(BusinessError):
+    def __init__(self):
+        super().__init__(code=50002, message="history storage not ready", http_status=500)
+
+
+class MatchHistoryNotFound(BusinessError):
+    def __init__(self):
+        super().__init__(code=40403, message="match history not found", http_status=404)

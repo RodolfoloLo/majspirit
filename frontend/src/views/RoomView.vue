@@ -67,31 +67,35 @@ async function leaveRoomNow(): Promise<void> {
 </script>
 
 <template>
-  <section class="room-page">
-    <article class="card room-head">
-      <h1>{{ roomStore.currentRoom?.name || `房间 #${roomId}` }}</h1>
-      <p>状态：{{ roomStore.currentRoom?.status || "waiting" }}</p>
-      <div class="room-actions">
-        <button class="ghost" type="button" @click="leaveRoomNow">离开房间</button>
-        <button class="primary" type="button" @click="toggleReady" :disabled="!me">
+  <section class="grid gap-4">
+    <article class="paper-card">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h1 class="m-0 text-3xl font-semibold text-ink-900">{{ roomStore.currentRoom?.name || `房间 #${roomId}` }}</h1>
+        <span class="status-chip">状态 {{ roomStore.currentRoom?.status || "waiting" }}</span>
+      </div>
+      <p class="mb-4 mt-0 text-sm text-ink-700">人数不足 4 人时，系统会自动补入 BOT 对战。</p>
+
+      <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <button class="ink-btn-ghost" type="button" @click="leaveRoomNow">离开房间</button>
+        <button class="ink-btn-primary" type="button" @click="toggleReady" :disabled="!me">
           {{ me?.ready ? "取消准备" : "我已准备" }}
         </button>
-        <button class="primary" type="button" @click="doStart">开始对局</button>
+        <button class="ink-btn-primary" type="button" @click="doStart">开始对局</button>
       </div>
     </article>
 
-    <div class="seat-grid">
-      <article v-for="seat in [0, 1, 2, 3]" :key="seat" class="seat card">
-        <h3>{{ seat }} 号位</h3>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <article v-for="seat in [0, 1, 2, 3]" :key="seat" class="paper-card">
+        <h3 class="m-0 text-lg text-ink-900">{{ seat }} 号位</h3>
         <template v-if="players.find((p) => p.seat === seat)">
-          <p>玩家 ID：{{ players.find((p) => p.seat === seat)?.user_id }}</p>
-          <p>
+          <p class="mb-1 mt-3 text-sm text-ink-700">玩家 ID：{{ players.find((p) => p.seat === seat)?.user_id }}</p>
+          <p class="m-0 text-sm text-ink-700">
             状态：{{ players.find((p) => p.seat === seat)?.ready ? "已准备" : "未准备" }}
           </p>
         </template>
         <template v-else>
-          <p>空位</p>
-          <button class="ghost" type="button" @click="joinAtSeat(seat)">入座</button>
+          <p class="mb-3 mt-3 text-sm text-ink-700">空位</p>
+          <button class="ink-btn-ghost" type="button" @click="joinAtSeat(seat)">入座</button>
         </template>
       </article>
     </div>

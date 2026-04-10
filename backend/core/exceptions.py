@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -5,6 +7,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.exceptions.business import BusinessError
 from backend.core.response import fail
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def _default_message(status_code: int) -> str:
@@ -74,7 +79,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def handle_unexpected_exception(_: Request, __: Exception) -> JSONResponse:
+    async def handle_unexpected_exception(_: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled exception in API request", exc_info=exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=fail(code=50001, message="internal server error"),

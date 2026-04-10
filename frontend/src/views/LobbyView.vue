@@ -45,43 +45,53 @@ async function enterRoom(roomId?: number): Promise<void> {
 </script>
 
 <template>
-  <section class="lobby-page">
-    <div class="hero-panel card">
-      <h1>雀局大厅</h1>
-      <p>创建新房间，或加入正在等待开局的牌桌。推荐四人满员后统一点击准备。</p>
-      <div class="hero-actions">
-        <label>
-          房间名
-          <input v-model.trim="roomName" type="text" maxlength="100" />
+  <section class="grid gap-4">
+    <div class="paper-card">
+      <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 class="m-0 text-3xl font-semibold text-ink-900">雀局大厅</h1>
+          <p class="mt-2 text-sm text-ink-700/80">创建新房间，或加入正在等待开局的牌桌。</p>
+        </div>
+        <span class="status-chip">经典四人场 · BOT可补位</span>
+      </div>
+
+      <div class="grid grid-cols-1 items-end gap-3 md:grid-cols-[1.2fr_0.6fr_auto]">
+        <label class="grid gap-1 text-sm text-ink-700">
+          <span>房间名</span>
+          <input v-model.trim="roomName" class="ink-input" type="text" maxlength="100" />
         </label>
-        <label>
-          人数
-          <select v-model.number="maxPlayers">
-            <option :value="2">2 人</option>
-            <option :value="3">3 人</option>
+        <label class="grid gap-1 text-sm text-ink-700">
+          <span>人数</span>
+          <select v-model.number="maxPlayers" class="ink-input">
             <option :value="4">4 人</option>
           </select>
         </label>
-        <button class="primary" type="button" @click="createRoomAndEnter">创建并进入</button>
+        <button class="ink-btn-primary" type="button" @click="createRoomAndEnter">创建并进入</button>
       </div>
     </div>
 
-    <div class="room-grid">
-      <article v-for="room in roomStore.rooms" :key="room.room_id ?? room.id" class="room-card card">
-        <header>
-          <h3>{{ room.name || `房间 #${room.room_id ?? room.id}` }}</h3>
-          <span class="status">{{ room.status || "waiting" }}</span>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <article
+        v-for="room in roomStore.rooms"
+        :key="room.room_id ?? room.id"
+        class="paper-card group transition duration-300 hover:-translate-y-1"
+      >
+        <header class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="m-0 text-lg text-ink-900">{{ room.name || `房间 #${room.room_id ?? room.id}` }}</h3>
+          <span class="rounded-full border border-jade-600/30 bg-jade-500/10 px-2 py-0.5 text-xs text-jade-600">
+            {{ room.status || "waiting" }}
+          </span>
         </header>
-        <p>房主：{{ room.owner_id || "未知" }}</p>
-        <p>人数：{{ room.max_players || 4 }} / 4</p>
-        <button class="ghost" type="button" @click="enterRoom(Number(room.room_id ?? room.id))">
+        <p class="m-0 text-sm text-ink-700">房主：{{ room.owner_id || "未知" }}</p>
+        <p class="mb-4 mt-2 text-sm text-ink-700">人数：{{ room.max_players || 4 }} / 4</p>
+        <button class="ink-btn-ghost" type="button" @click="enterRoom(Number(room.room_id ?? room.id))">
           查看并加入
         </button>
       </article>
 
-      <article v-if="roomStore.rooms.length === 0" class="room-card card empty">
-        <h3>当前没有房间</h3>
-        <p>先创建一个“春风雅局”试试。</p>
+      <article v-if="roomStore.rooms.length === 0" class="paper-card">
+        <h3 class="m-0 text-xl text-ink-900">当前没有房间</h3>
+        <p class="mb-0 mt-2 text-sm text-ink-700">先创建一个“春风雅局”试试。</p>
       </article>
     </div>
   </section>

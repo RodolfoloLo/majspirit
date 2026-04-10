@@ -10,6 +10,8 @@ from backend.db.base import Base
 from backend.models.user import User
 from backend.models.room import Room
 from backend.models.room_player import RoomPlayer
+from backend.models.match_history import MatchHistory
+from backend.models.match_detail import MatchDetail
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

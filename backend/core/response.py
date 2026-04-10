@@ -1,4 +1,5 @@
 from typing import Any
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from backend.core.request_context import get_request_id
@@ -13,7 +14,7 @@ def ok(data: Any = None, message: str = "ok") -> JSONResponse:
     request_id = get_request_id()
     if request_id:
         payload["request_id"] = request_id
-    return JSONResponse(content=payload)
+    return JSONResponse(content=jsonable_encoder(payload))
 
 
 def fail(code: int, message: str, data: Any = None) -> dict[str, Any]:
@@ -25,4 +26,4 @@ def fail(code: int, message: str, data: Any = None) -> dict[str, Any]:
     request_id = get_request_id()
     if request_id:
         payload["request_id"] = request_id
-    return payload
+    return jsonable_encoder(payload)

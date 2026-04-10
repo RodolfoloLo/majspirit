@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field,ConfigDict
 
 class RoomCreateReq(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    max_players: int = Field(default=4, ge=2, le=4)
+    max_players: int = Field(default=4, ge=4, le=4)
 
 class RoomJoinReq(BaseModel):
     seat: int = Field(ge=0, le=3)
