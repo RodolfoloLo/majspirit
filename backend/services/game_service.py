@@ -76,7 +76,7 @@ class GameService:
         return {"game_id": game_id, "match_id": match_id}
 
     def get_state(self, game_id: int, user_id: int | None = None) -> dict:
-        state = self.require_game(game_id)
+        state = self._require_game(game_id)
         players = []
         for seat in sorted(state["players"].keys()):
             p = state["players"][seat]
@@ -115,7 +115,7 @@ class GameService:
         }
 
     #获取游戏状态
-    def require_game(self, game_id: int) -> dict:
+    def _require_game(self, game_id: int) -> dict:
         state = self._games.get(game_id)
         if not state:
             raise GameNotFound()

@@ -39,6 +39,41 @@ async function openDetail(matchId: number): Promise<void> {
     detailLoading.value = false;
   }
 }
+
+function seatLabel(seat: number): string {
+  const rankItem = detail.value?.detail.ranking.find((item) => item.seat === seat);
+  if (!rankItem) {
+    return `座位${seat}`;
+  }
+  if (rankItem.is_bot) {
+    return rankItem.nickname || `BOT-${seat}`;
+  }
+  return `玩家${rankItem.user_id}`;
+}
+
+function roundOutcomeText(round: MatchDetailResponse["detail"]["rounds"][number]): string {
+  const result = round.result;
+  if (!result || typeof result.type !== "string") {
+    return "本局结果缺失";
+  }
+
+  if (result.type === "draw") {
+    return "平局（流局）";
+  }
+
+  if (result.type === "tsumo") {
+    const winnerSeat = Number(result.winner_seat);
+    return `${seatLabel(winnerSeat)} 自摸`;
+  }
+
+  if (result.type === "ron") {
+    const winnerSeat = Number(result.winner_seat);
+    const loserSeat = Number(result.loser_seat);
+    return `${seatLabel(winnerSeat)} 荣和（放铳：${seatLabel(loserSeat)}）`;
+  }
+
+  return "本局结束";
+}
 </script>
 
 <template>
@@ -99,13 +134,7 @@ async function openDetail(matchId: number): Promise<void> {
           class="rounded-2xl border border-jade-600/20 bg-rice-50/80 p-3"
         >
           <h3 class="m-0 text-base text-ink-900">第 {{ round.round_index }} 小局 · 庄家 {{ round.dealer_seat }}</h3>
-          <p class="mb-0 mt-2 break-all text-xs text-ink-700">初始牌山：{{ round.initial_wall.join(' ') }}</p>
-          <p class="mb-1 mt-2 text-xs text-ink-700">回合记录：</p>
-          <ul class="m-0 list-disc pl-4 text-xs text-ink-700">
-            <li v-for="(turn, idx) in round.turns" :key="`${round.round_index}-${idx}`">
-              {{ turn.action }} | 座位 {{ turn.seat }} | {{ turn.tile || "-" }} | {{ turn.at }}
-            </li>
-          </ul>
+          <p class="mb-0 mt-2 text-sm text-ink-700">结果：{{ roundOutcomeText(round) }}</p>
         </article>
       </div>
     </article>

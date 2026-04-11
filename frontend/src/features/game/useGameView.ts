@@ -16,6 +16,37 @@ type SeatDisplay = {
   score: number;
 };
 
+type EffectKind = "win" | "match_end";
+
+type ActionPayload = {
+  event_type?: string;
+  events?: Array<{ event_type?: string }>;
+};
+
+const HONOR_ORDER: Record<string, number> = {
+  east: 1,
+  south: 2,
+  west: 3,
+  north: 4,
+  red: 5,
+  green: 6,
+  white: 7,
+};
+
+const SUIT_ORDER: Record<string, number> = {
+  m: 1,
+  s: 2,
+  p: 3,
+};
+
+function tileSortKey(tile: string): [number, number] {
+  const basic = /^([msp])(\d)$/.exec(tile);
+  if (basic) {
+    return [SUIT_ORDER[basic[1]], Number.parseInt(basic[2], 10)];
+  }
+  return [4, HONOR_ORDER[tile] ?? 99];
+}
+
 export function useGameView() {
   const route = useRoute();
   const ui = useUiStore();
@@ -25,16 +56,78 @@ export function useGameView() {
   const actions = ref<GameActions | null>(null);
   const selectedIndex = ref<number | null>(null);
   const loading = ref(false);
+  const effect = ref<{ kind: EffectKind; text: string; seed: number } | null>(null);
+
+  let effectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function triggerEffect(kind: EffectKind): void {
+    if (effectTimer) {
+      clearTimeout(effectTimer);
+    }
+
+    effect.value = {
+      kind,
+      text: kind === "match_end" ? "对局结束" : "和牌!",
+      seed: Date.now(),
+    };
+
+    effectTimer = setTimeout(() => {
+      effect.value = null;
+      effectTimer = null;
+    }, 1700);
+  }
+
+  function applyEffectFromPayload(payload: unknown): void {
+    const data = payload as ActionPayload;
+    const eventTypes = new Set<string>();
+
+    if (data?.event_type) {
+      eventTypes.add(data.event_type);
+    }
+
+    for (const item of data?.events || []) {
+      if (item?.event_type) {
+        eventTypes.add(item.event_type);
+      }
+    }
+
+    if (eventTypes.has("game_match_end")) {
+      triggerEffect("match_end");
+      return;
+    }
+
+    if (eventTypes.has("game_win")) {
+      triggerEffect("win");
+    }
+  }
 
   const socket = new MajSocket({
     onMessage(event) {
+      if (event.type === "game_match_end") {
+        triggerEffect("match_end");
+      } else if (event.type === "game_win") {
+        triggerEffect("win");
+      }
+
       if (event.type.startsWith("game_")) {
         void refreshGame();
       }
     },
   });
 
-  const myHand = computed(() => state.value?.my_hand || []);
+  const myHand = computed(() => {
+    const hand = state.value?.my_hand || [];
+    return [...hand].sort((a, b) => {
+      const [aGroup, aRank] = tileSortKey(a);
+      const [bGroup, bRank] = tileSortKey(b);
+
+      if (aGroup !== bGroup) {
+        return aGroup - bGroup;
+      }
+
+      return aRank - bRank;
+    });
+  });
   const mySeat = computed(() => state.value?.my_seat);
 
   const selectedTile = computed(() => {
@@ -112,7 +205,8 @@ export function useGameView() {
     }
 
     try {
-      await discardTile(gameId.value, selectedTile.value);
+      const result = await discardTile(gameId.value, selectedTile.value);
+      applyEffectFromPayload(result);
       await refreshGame();
     } catch (error) {
       ui.push(error instanceof Error ? error.message : "出牌失败", "error");
@@ -121,7 +215,8 @@ export function useGameView() {
 
   async function doTsumo(): Promise<void> {
     try {
-      await tsumo(gameId.value);
+      const result = await tsumo(gameId.value);
+      applyEffectFromPayload(result);
       await refreshGame();
     } catch (error) {
       ui.push(error instanceof Error ? error.message : "自摸失败", "error");
@@ -130,7 +225,8 @@ export function useGameView() {
 
   async function doRon(): Promise<void> {
     try {
-      await ron(gameId.value);
+      const result = await ron(gameId.value);
+      applyEffectFromPayload(result);
       await refreshGame();
     } catch (error) {
       ui.push(error instanceof Error ? error.message : "荣和失败", "error");
@@ -139,7 +235,8 @@ export function useGameView() {
 
   async function doPass(): Promise<void> {
     try {
-      await passAction(gameId.value);
+      const result = await passAction(gameId.value);
+      applyEffectFromPayload(result);
       await refreshGame();
     } catch (error) {
       ui.push(error instanceof Error ? error.message : "过牌失败", "error");
@@ -155,6 +252,10 @@ export function useGameView() {
   });
 
   onUnmounted(() => {
+    if (effectTimer) {
+      clearTimeout(effectTimer);
+      effectTimer = null;
+    }
     socket.disconnect();
   });
 
@@ -162,6 +263,7 @@ export function useGameView() {
     gameId,
     state,
     actions,
+    effect,
     loading,
     mySeat,
     myHand,

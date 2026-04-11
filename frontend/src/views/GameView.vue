@@ -8,6 +8,7 @@ const {
   doPass,
   doRon,
   doTsumo,
+  effect,
   gameId,
   leftSeat,
   loading,
@@ -49,6 +50,17 @@ const {
         >
           当前出牌位 {{ state.turn_seat }} · 状态 {{ state.status }}
         </div>
+
+        <Transition name="result-burst">
+          <div
+            v-if="effect"
+            :key="effect.seed"
+            class="round-effect-overlay"
+            :class="effect.kind === 'match_end' ? 'match-end' : 'win'"
+          >
+            <div class="round-effect-text">{{ effect.text }}</div>
+          </div>
+        </Transition>
 
         <div class="grid h-full w-full grid-cols-3 grid-rows-3 gap-2 sm:gap-4">
           <div
@@ -182,7 +194,7 @@ const {
           </div>
 
           <div
-            class="col-start-2 row-start-3 flex flex-col items-center justify-end gap-2 pb-2"
+            class="col-start-1 col-span-3 row-start-3 flex flex-col items-center justify-end gap-2 pb-2"
           >
             <div class="seat-panel w-full max-w-[620px] text-xs">
               <div class="font-semibold">
@@ -216,7 +228,7 @@ const {
             <TransitionGroup
               name="tile"
               tag="div"
-              class="flex max-w-[680px] flex-wrap justify-center gap-1.5"
+              class="flex w-full max-w-[980px] flex-wrap items-end justify-center gap-1.5 pb-1"
             >
               <button
                 v-for="(tile, idx) in myHand"
@@ -232,10 +244,8 @@ const {
           </div>
         </div>
       </div>
-    </article>
 
-    <article class="paper-card" v-if="actions">
-      <div class="flex flex-wrap items-center gap-2">
+      <div v-if="actions" class="mt-3 flex flex-wrap items-center justify-center gap-2">
         <button
           class="ink-btn-primary"
           type="button"
@@ -270,13 +280,9 @@ const {
         </button>
       </div>
 
-      <p class="mb-0 mt-3 text-xs text-ink-700/70">
-        你的座位：{{ mySeat ?? "-" }}，可用动作：{{
-          actions.actions.join(" / ") || "无"
-        }}
+      <p v-if="actions" class="mb-0 mt-1 text-center text-xs text-ink-700/85">
+        你的座位：{{ mySeat ?? "-" }}，可用动作：{{ actions.actions.join(" / ") || "无" }}
       </p>
     </article>
-
-    
   </section>
 </template>

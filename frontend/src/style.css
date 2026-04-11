@@ -176,6 +176,72 @@ body {
   transform: translateX(16px);
 }
 
+.result-burst-enter-active,
+.result-burst-leave-active {
+  transition: opacity 0.24s ease;
+}
+
+.result-burst-enter-from,
+.result-burst-leave-to {
+  opacity: 0;
+}
+
+.round-effect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.round-effect-overlay.win {
+  background: radial-gradient(circle at center, rgba(229, 195, 129, 0.34) 0%, rgba(16, 38, 36, 0.08) 48%, rgba(16, 38, 36, 0) 78%);
+}
+
+.round-effect-overlay.match-end {
+  background: radial-gradient(circle at center, rgba(146, 42, 37, 0.34) 0%, rgba(16, 38, 36, 0.12) 48%, rgba(16, 38, 36, 0) 78%);
+}
+
+.round-effect-text {
+  border-radius: 999px;
+  border: 1px solid rgba(247, 241, 230, 0.5);
+  padding: 0.8rem 2rem;
+  font-family: "Ma Shan Zheng", cursive;
+  font-size: clamp(1.8rem, 5vw, 3.1rem);
+  letter-spacing: 0.12em;
+  color: #fff6e5;
+  text-shadow: 0 10px 22px rgba(5, 15, 14, 0.48);
+  animation: burstPop 1.05s ease-out both;
+  backdrop-filter: blur(2px);
+}
+
+.round-effect-overlay.win .round-effect-text {
+  background: linear-gradient(125deg, rgba(184, 151, 95, 0.9), rgba(138, 104, 52, 0.85));
+}
+
+.round-effect-overlay.match-end .round-effect-text {
+  background: linear-gradient(125deg, rgba(142, 47, 42, 0.92), rgba(93, 34, 31, 0.88));
+}
+
+@keyframes burstPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+    filter: blur(4px);
+  }
+  36% {
+    opacity: 1;
+    transform: scale(1.1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0.96;
+    transform: scale(1);
+  }
+}
+
 .toast-enter-active,
 .toast-leave-active {
   transition: all 0.24s ease;

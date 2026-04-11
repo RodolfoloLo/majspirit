@@ -16,3 +16,7 @@ class TokenResp(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class LogoutResp(BaseModel):
+    logged_out: bool

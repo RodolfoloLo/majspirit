@@ -15,7 +15,7 @@ from backend.ws.manager import ws_manager
 
 router = APIRouter(prefix="/games", tags=["games"])
 
-#函数作用：广播游戏事件 打牌/和牌接口需要调用
+#函数作用：广播游戏事件 打牌/和牌接口需要调用 WebSocket!!!
 async def broadcast_game_events(event_data: dict) -> None:
     events = event_data.get("events") or [event_data]
     ts = datetime.now(timezone.utc).isoformat()
@@ -28,7 +28,7 @@ async def broadcast_game_events(event_data: dict) -> None:
             }
         )
 
-#函数作用: 检查游戏结束
+#函数作用: 检查游戏结束 并持久化结果到数据库 打牌/和牌接口需要调用这个函数!!!
 async def persist_if_match_end(game_id: int, db: AsyncSession) -> None:
     if not game_service.is_match_finished(game_id):
         return
