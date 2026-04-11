@@ -27,6 +27,7 @@ class RoomRepo:
         self.db.add(room)
         await self.db.flush()
         await self.db.refresh(room)
+        #add+flush+refresh的组合可以确保在创建房间后，room对象的id等数据库生成的字段能够正确地被填充和返回。
         return room
 
     async def add_player(self, room_id: int, user_id: int, seat: int) -> RoomPlayer:
@@ -41,6 +42,7 @@ class RoomRepo:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    #查找玩家在房间里的状态,主要是为了ready接口服务的.
     async def get_player(self, room_id: int, user_id: int) -> RoomPlayer | None:
         stmt = select(RoomPlayer).where(
             RoomPlayer.room_id == room_id,

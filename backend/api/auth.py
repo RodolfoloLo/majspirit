@@ -37,4 +37,5 @@ async def me(user=Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout(user=Depends(get_current_user)):
-    return ok(LogoutResp(logged_out=True).model_dump())
+    logged_out = LogoutResp(logged_out=True)
+    return ok(logged_out.model_dump())

@@ -44,3 +44,25 @@
 > 3. 客户端存储 Token：客户端拿到 Token 后，存在localStorage/sessionStorage/HttpOnly Cookie 中。
 > 4. 访问需要登录的接口：客户端在请求头中带上 Token，发送请求。
 > 5. 后端自动鉴权：FastAPI 自动调用get_current_user，提取 Token、验证 Token、查询用户，最终把用户对象传给接口。如果验证失败，直接返回对应的错误。
+
+## 房间模块
+
+### 七个接口
+1. GET /api/v1/rooms(查看房间列表)
+2. GET /api/v1/rooms/{room_id}(查看房间详情)
+3. POST /api/v1/rooms(创建房间)
+4. POST /api/v1/rooms/{room_id}/join(加入房间)
+5. POST /api/v1/rooms/{room_id}/ready(准备/取消准备)
+6. POST /api/v1/rooms/{room_id}/start(开始游戏)
+7. POST /api/v1/rooms/{room_id}/leave(离开房间)
+
+> 一些写services层的心得:
+> 1. 首先的首先,services层专注于业务逻辑,不处理HTTP请求和响应,也不直接操作数据库.它应该调用repositories层来获取和修改数据,并且可能会调用其他服务来完成复杂的业务流程.
+> 2. 怎么思考要写哪些检查?:
+> -  第一步：我要操作的「资源」，它存在吗？
+> - 当前用户，有没有「资格」做这个操作？
+> - 这个资源的「当前状态」，允许我做这个操作吗？
+> - 我要操作的「目标数据」，合法吗？
+> - 做这个操作，有没有必须满足的「前置条件」？
+> - 并发场景下，我的检查会不会失效？要不要兜底？
+> - 最后：这些操作，要不要用事务包起来？

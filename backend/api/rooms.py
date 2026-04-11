@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.deps import get_current_user
 from backend.core.response import ok
 from backend.db.session import get_db
-from backend.schemas.room import RoomCreateReq, RoomJoinReq, RoomReadyReq
+from backend.schemas.room import RoomCreateReq, RoomJoinReq, RoomReadyReq, RoomState, RoomListResp, RoomPlayer, RoomStateResp, RoomBuiltResp, RoomJoinedResp, RoomReadyResp,RoomStartedResp,RoomLeaveResp
 from backend.services.room_service import RoomService
 
 
@@ -21,22 +21,14 @@ async def list_rooms(
 ):
     service = RoomService(db)
     rooms = await service.list_rooms(page=page, size=size, status=status_filter)
-    return ok({
-        "items": [
-            {
-                "room_id": room.id,
-                "name": room.name,
-                "owner_id": room.owner_id,
-                "status": room.status,
-                "max_players": room.max_players,
-                "created_at": room.created_at,
-            }
-            for room in rooms
-        ],
-        "page": page,
-        "size": size,
-    })
+    table = RoomListResp(
+        items=[RoomState.model_validate(r) for r in rooms],
+        page=page,
+        size=size,
+    )
+    return ok(table.model_dump())
 
+#查看房间详情
 @router.get("/{room_id}")
 async def get_room_detail(
     room_id: int, 
@@ -45,22 +37,17 @@ async def get_room_detail(
 ):
     service = RoomService(db)
     room, players = await service.get_room_with_players(room_id)
-    return ok({
-        "room_id": room.id,
-        "name": room.name,
-        "owner_id": room.owner_id,
-        "status": room.status,
-        "max_players": room.max_players,
-        "players": [
-            {
-                "user_id": p.user_id,
-                "seat": p.seat,
-                "ready": p.ready,
-            }
-            for p in players
-        ],
-    })
+    detail = RoomStateResp(
+        room_id=room.id,
+        name=room.name,
+        owner_id=room.owner_id,
+        status=room.status,
+        max_players=room.max_players,
+        players=[RoomPlayer.model_validate(p) for p in players],
+    )
+    return ok(detail.model_dump())
 
+#创建房间
 @router.post("")
 async def create_room(
     payload: RoomCreateReq, 
@@ -69,31 +56,34 @@ async def create_room(
 ):
     service = RoomService(db)
     room = await service.create_room(payload.name, user.id, payload.max_players)
-    return ok({"room_id": room.id, "status": room.status})
+    built = RoomBuiltResp(room_id=room.id, status=room.status)
+    return ok(built.model_dump())
 
 
 @router.post("/{room_id}/join")
 async def join_room(
     room_id: int, 
-    payload: RoomJoinReq, 
+    payload: RoomJoinReq, #选座位
     db: AsyncSession = Depends(get_db), 
     user=Depends(get_current_user)
 ):
     service = RoomService(db)
     rp = await service.join_room(room_id, user.id, payload.seat)
-    return ok({"room_id": room_id, "user_id": rp.user_id, "seat": rp.seat})
+    joined = RoomJoinedResp(room_id=rp.room_id, user_id=rp.user_id, seat=rp.seat)
+    return ok(joined.model_dump())
 
 
 @router.post("/{room_id}/ready")
 async def ready_room(
     room_id: int, 
-    payload: RoomReadyReq, 
+    payload: RoomReadyReq, #true or false
     db: AsyncSession = Depends(get_db), 
     user=Depends(get_current_user)
 ):
     service = RoomService(db)
     await service.set_ready(room_id, user.id, payload.ready)
-    return ok({"room_id": room_id, "ready": payload.ready})
+    ready = RoomReadyResp(room_id=room_id, ready=payload.ready)
+    return ok(ready.model_dump())
 
 
 @router.post("/{room_id}/start")
@@ -114,4 +104,5 @@ async def leave_room(
     ):
     service = RoomService(db)
     await service.leave_room(room_id, user.id)
-    return ok({"room_id": room_id, "user_id": user.id, "left": True})
+    left = RoomLeaveResp(room_id=room_id, user_id=user.id, left=True)
+    return ok(left.model_dump())

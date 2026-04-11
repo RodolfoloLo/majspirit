@@ -6,6 +6,15 @@ class BusinessError(Exception):
         super().__init__(message)
 
 #super()是什么?super()是一个内置函数，用于调用父类（超类）的方法。在这个上下文中，super().__init__(message)调用了父类Exception的构造函数，并将message参数传递给它。这确保了BusinessError类正确地继承了Exception类的行为，同时还允许我们在BusinessError中添加额外的属性（如code和http_status）。
+#抛出错误给FastAPI的具体格式:
+# raise BusinessError(code=40001, message="player not in room", http_status=400)
+#当这个错误被抛出时，FastAPI会捕获它并返回一个HTTP响应，响应的状态码将是400（由http_status指定），响应体将包含一个JSON对象，其中包含code和message字段。例如：
+# HTTP/1.1 400 Bad Request
+# Content-Type: application/json
+# {
+#     "code": 40001,
+#     "message": "player not in room"
+# }
 
 class EmailAlreadyExists(BusinessError):
     def __init__(self):
