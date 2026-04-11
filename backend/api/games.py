@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.deps import get_current_user
 from backend.core.response import ok
 from backend.db.session import get_db
-from backend.schemas.game import DiscardReq
+from backend.schemas.game import DiscardReq, GameActionsResp, GameStateResp
 from backend.services.game_service import game_service
 from backend.services.history_service import HistoryService
 from backend.ws.events import GAME_DISCARDED
@@ -15,8 +16,7 @@ from backend.ws.manager import ws_manager
 
 router = APIRouter(prefix="/games", tags=["games"])
 
-#函数作用：广播游戏事件 打牌/和牌接口需要调用 WebSocket!!!
-async def broadcast_game_events(event_data: dict) -> None:
+async def broadcast_game_events(event_data: dict[str, Any]) -> None:
     events = event_data.get("events") or [event_data]
     ts = datetime.now(timezone.utc).isoformat()
     for item in events:
@@ -28,7 +28,6 @@ async def broadcast_game_events(event_data: dict) -> None:
             }
         )
 
-#函数作用: 检查游戏结束 并持久化结果到数据库 打牌/和牌接口需要调用这个函数!!!
 async def persist_if_match_end(game_id: int, db: AsyncSession) -> None:
     if not game_service.is_match_finished(game_id):
         return
@@ -39,19 +38,18 @@ async def persist_if_match_end(game_id: int, db: AsyncSession) -> None:
     await HistoryService(db).save_match_result(summary)
     game_service.mark_persisted(game_id)
 
-#获取游戏状态接口
 @router.get("/{game_id}/state")
 async def game_state(game_id: int, user=Depends(get_current_user)):
-    payload = game_service.get_state(game_id=game_id, user_id=user.id)
+    state = game_service.get_state(game_id=game_id, user_id=user.id)
+    payload = GameStateResp.model_validate(state).model_dump()
     return ok(payload)
 
-#获取可用操作接口
 @router.get("/{game_id}/actions/available")
 async def available_actions(game_id: int, user=Depends(get_current_user)):
-    payload = game_service.get_available_actions(game_id=game_id, user_id=user.id)
+    actions = game_service.get_available_actions(game_id=game_id, user_id=user.id)
+    payload = GameActionsResp.model_validate(actions).model_dump()
     return ok(payload)
 
-#打牌接口
 @router.post("/{game_id}/actions/discard")
 async def discard(
     game_id: int,
@@ -64,22 +62,19 @@ async def discard(
     await broadcast_game_events(event_data)
     return ok(event_data)
 
-#摸牌接口
 @router.post("/{game_id}/actions/draw")
 async def draw(game_id: int, user=Depends(get_current_user)):
     _ = game_id
     _ = user
     game_service.action_not_available()
 
-#自摸接口
 @router.post("/{game_id}/actions/tsumo")
 async def tsumo(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.tsumo(game_id=game_id, user_id=user.id)
     await persist_if_match_end(game_id, db)
-    await  broadcast_game_events(event_data)
+    await broadcast_game_events(event_data)
     return ok(event_data)
 
-#荣和接口
 @router.post("/{game_id}/actions/ron")
 async def ron(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.ron(game_id=game_id, user_id=user.id)
@@ -87,7 +82,6 @@ async def ron(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get
     await broadcast_game_events(event_data)
     return ok(event_data)
 
-#过牌接口
 @router.post("/{game_id}/actions/pass")
 async def pass_action(game_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     event_data = game_service.pass_action(game_id=game_id, user_id=user.id)

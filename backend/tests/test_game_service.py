@@ -96,11 +96,11 @@ def test_available_actions_includes_tsumo_for_seven_pairs():
 
     game_id = meta["game_id"]
     state = service._games[game_id]
-    seat = state["turn_seat"]
-    user_id = state["players"][seat]["user_id"]
+    seat = state.turn_seat
+    user_id = state.players[seat].user_id
 
     # Manually craft a 14-tile seven pairs hand for current turn player.
-    state["players"][seat]["hand"] = [
+    state.players[seat].hand = [
         "m1",
         "m1",
         "m2",

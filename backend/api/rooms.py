@@ -94,7 +94,7 @@ async def start_room(
     ):
     service = RoomService(db)
     game_meta = await service.start_room(room_id, user.id)
-    return ok({"room_id": room_id, "started": True, **game_meta})
+    return ok({"room_id": room_id, "started": True, **game_meta})#**game_meta包含了游戏ID和玩家列表等信息，可以根据需要返回给前端。
 
 @router.post("/{room_id}/leave")
 async def leave_room(
