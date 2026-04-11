@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
-import { discardTile, getGameActions, getGameState, passAction, ron, tsumo } from "../../api/games";
+import { discardTile, getGameActions, getGameState, peng, tsumo } from "../../api/games";
 import { getStoredToken } from "../../lib/token";
 import { useUiStore } from "../../stores/ui";
 import type { GameActions, GameState } from "../../types/api";
@@ -223,23 +223,13 @@ export function useGameView() {
     }
   }
 
-  async function doRon(): Promise<void> {
+  async function doPeng(): Promise<void> {
     try {
-      const result = await ron(gameId.value);
+      const result = await peng(gameId.value);
       applyEffectFromPayload(result);
       await refreshGame();
     } catch (error) {
-      ui.push(error instanceof Error ? error.message : "荣和失败", "error");
-    }
-  }
-
-  async function doPass(): Promise<void> {
-    try {
-      const result = await passAction(gameId.value);
-      applyEffectFromPayload(result);
-      await refreshGame();
-    } catch (error) {
-      ui.push(error instanceof Error ? error.message : "过牌失败", "error");
+      ui.push(error instanceof Error ? error.message : "碰牌失败", "error");
     }
   }
 
@@ -277,7 +267,6 @@ export function useGameView() {
     refreshGame,
     doDiscard,
     doTsumo,
-    doRon,
-    doPass,
+    doPeng,
   };
 }

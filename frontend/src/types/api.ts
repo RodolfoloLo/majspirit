@@ -100,6 +100,8 @@ export interface GameStatePlayer {
   nickname: string;
   hand_count: number;
   discards: string[];
+  open_meld_count: number;
+  open_melds: string[][];
 }
 
 export interface GameState {
@@ -115,6 +117,7 @@ export interface GameState {
   my_seat: number | null;
   my_hand: string[] | null;
   pending_ron: number[];
+  pending_peng: number[];
   last_discard: { seat: number; tile: string; next_turn_seat?: number } | null;
 }
 

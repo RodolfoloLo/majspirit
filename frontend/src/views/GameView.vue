@@ -5,8 +5,7 @@ const {
   actions,
   bottomSeat,
   doDiscard,
-  doPass,
-  doRon,
+  doPeng,
   doTsumo,
   effect,
   gameId,
@@ -80,6 +79,20 @@ const {
                 分数 {{ topSeat?.score || 0 }}
               </div>
             </div>
+            <div
+              v-if="(topSeat?.player?.open_melds?.length || 0) > 0"
+              class="flex flex-wrap justify-center gap-2"
+            >
+              <div
+                v-for="(meld, meldIdx) in topSeat?.player?.open_melds || []"
+                :key="`top-meld-${meldIdx}`"
+                class="flex gap-0.5 rounded-lg border border-rice-100/20 bg-ink-900/25 p-1"
+              >
+                <div v-for="(tile, tileIdx) in meld" :key="`top-meld-tile-${meldIdx}-${tileIdx}`" class="tile-face h-8 w-6 text-[10px]">
+                  <div class="mahjong-sprite" :style="{ backgroundPosition: parseTile(tile).bgPos }"></div>
+                </div>
+              </div>
+            </div>
             <div class="flex flex-wrap justify-center gap-1">
               <div
                 v-for="index in topSeat?.player?.hand_count || 0"
@@ -117,6 +130,20 @@ const {
               </div>
               <div class="mt-1 text-rice-100/85">
                 分数 {{ leftSeat?.score || 0 }}
+              </div>
+            </div>
+            <div
+              v-if="(leftSeat?.player?.open_melds?.length || 0) > 0"
+              class="flex flex-wrap gap-2"
+            >
+              <div
+                v-for="(meld, meldIdx) in leftSeat?.player?.open_melds || []"
+                :key="`left-meld-${meldIdx}`"
+                class="flex gap-0.5 rounded-lg border border-rice-100/20 bg-ink-900/25 p-1"
+              >
+                <div v-for="(tile, tileIdx) in meld" :key="`left-meld-tile-${meldIdx}-${tileIdx}`" class="tile-face h-8 w-6 text-[10px]">
+                  <div class="mahjong-sprite" :style="{ backgroundPosition: parseTile(tile).bgPos }"></div>
+                </div>
               </div>
             </div>
             <div class="flex flex-col gap-1">
@@ -158,6 +185,20 @@ const {
                 分数 {{ rightSeat?.score || 0 }}
               </div>
             </div>
+            <div
+              v-if="(rightSeat?.player?.open_melds?.length || 0) > 0"
+              class="flex flex-wrap justify-end gap-2"
+            >
+              <div
+                v-for="(meld, meldIdx) in rightSeat?.player?.open_melds || []"
+                :key="`right-meld-${meldIdx}`"
+                class="flex gap-0.5 rounded-lg border border-rice-100/20 bg-ink-900/25 p-1"
+              >
+                <div v-for="(tile, tileIdx) in meld" :key="`right-meld-tile-${meldIdx}-${tileIdx}`" class="tile-face h-8 w-6 text-[10px]">
+                  <div class="mahjong-sprite" :style="{ backgroundPosition: parseTile(tile).bgPos }"></div>
+                </div>
+              </div>
+            </div>
             <div class="flex flex-col gap-1">
               <div
                 v-for="index in rightSeat?.player?.hand_count || 0"
@@ -191,6 +232,18 @@ const {
                 {{ state.wall_remaining }}
               </div>
             </div>
+
+            <div
+              v-if="state.last_discard"
+              class="rounded-2xl border border-rice-100/30 bg-ink-900/45 px-4 py-2 text-center text-rice-100 backdrop-blur"
+            >
+              <div class="text-[11px] text-rice-100/80">最近出牌 · 座位 {{ state.last_discard.seat }}</div>
+              <div class="mt-1 flex justify-center">
+                <div class="tile-face h-10 w-8 text-xs">
+                  <div class="mahjong-sprite" :style="{ backgroundPosition: parseTile(state.last_discard.tile).bgPos }"></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
@@ -208,6 +261,20 @@ const {
               </div>
               <div class="mt-1 text-rice-100/85">
                 分数 {{ bottomSeat?.score || 0 }}
+              </div>
+            </div>
+            <div
+              v-if="(bottomSeat?.player?.open_melds?.length || 0) > 0"
+              class="flex flex-wrap justify-center gap-2"
+            >
+              <div
+                v-for="(meld, meldIdx) in bottomSeat?.player?.open_melds || []"
+                :key="`bottom-meld-${meldIdx}`"
+                class="flex gap-0.5 rounded-lg border border-rice-100/20 bg-ink-900/25 p-1"
+              >
+                <div v-for="(tile, tileIdx) in meld" :key="`bottom-meld-tile-${meldIdx}-${tileIdx}`" class="tile-face h-8 w-6 text-[10px]">
+                  <div class="mahjong-sprite" :style="{ backgroundPosition: parseTile(tile).bgPos }"></div>
+                </div>
               </div>
             </div>
 
@@ -265,18 +332,10 @@ const {
         <button
           class="ink-btn-ghost"
           type="button"
-          @click="doRon"
-          :disabled="!actions.actions.includes('ron')"
+          @click="doPeng"
+          :disabled="!actions.actions.includes('peng')"
         >
-          荣和
-        </button>
-        <button
-          class="ink-btn-ghost"
-          type="button"
-          @click="doPass"
-          :disabled="!actions.actions.includes('pass')"
-        >
-          过
+          碰牌
         </button>
       </div>
 

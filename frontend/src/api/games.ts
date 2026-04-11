@@ -21,6 +21,6 @@ export async function ron(gameId: number): Promise<Record<string, unknown>> {
   return unwrap<Record<string, unknown>>(http.post(`/games/${gameId}/actions/ron`));
 }
 
-export async function passAction(gameId: number): Promise<Record<string, unknown>> {
-  return unwrap<Record<string, unknown>>(http.post(`/games/${gameId}/actions/pass`));
+export async function peng(gameId: number): Promise<Record<string, unknown>> {
+  return unwrap<Record<string, unknown>>(http.post(`/games/${gameId}/actions/peng`));
 }

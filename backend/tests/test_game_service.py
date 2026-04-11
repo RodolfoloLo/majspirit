@@ -37,23 +37,71 @@ def test_match_ends_after_four_round_tsumo(monkeypatch):
     assert len(summary["rounds"]) == 4
 
 
-def test_discard_opens_ron_window(monkeypatch):
-    monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: len(tiles) == 14)
+def test_discard_ron_has_priority_over_peng(monkeypatch):
+    monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: False)
 
     service = GameService()
     players = [RoomPlayer(room_id=1, user_id=i + 1, seat=i, ready=True) for i in range(4)]
     meta = service.create_game(room_id=1, players=players)
 
-    state = service.get_state(meta["game_id"])
-    actor_user_id = state["players"][state["turn_seat"]]["user_id"]
-    actor_seat = state["turn_seat"]
+    game_id = meta["game_id"]
+    state = service._games[game_id]
+    state.players[0].hand = ["m1"] + state.players[0].hand[1:]
+    state.players[2].hand = ["m1", "m1"] + state.players[2].hand[2:]
 
-    actor_hand = service.get_state(meta["game_id"], actor_user_id)["my_hand"]
-    tile = actor_hand[0]
-    result = service.discard(meta["game_id"], actor_user_id, tile)
+    monkeypatch.setattr(
+        GameService,
+        "can_win",
+        lambda self, player, extra_tile=None: player.seat == 1 and extra_tile == "m1",
+    )
 
-    assert result["status"] == "waiting_for_ron"
-    assert actor_seat not in result["pending_ron"]
+    result = service.discard(game_id, state.players[0].user_id, "m1")
+
+    assert result["event_type"] == "game_win"
+    assert result["round_result"]["type"] == "ron"
+    assert result["round_result"]["winner_seat"] == 1
+
+
+def test_discard_opens_peng_window(monkeypatch):
+    monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: False)
+
+    service = GameService()
+    players = [RoomPlayer(room_id=1, user_id=i + 1, seat=i, ready=True) for i in range(4)]
+    meta = service.create_game(room_id=1, players=players)
+
+    game_id = meta["game_id"]
+    state = service._games[game_id]
+    state.players[0].hand = ["m1"] + state.players[0].hand[1:]
+    state.players[1].hand = ["m1", "m1"] + state.players[1].hand[2:]
+
+    result = service.discard(game_id, state.players[0].user_id, "m1")
+    assert result["status"] == "waiting_for_peng"
+    assert 1 in result["pending_peng"]
+
+    actions = service.get_available_actions(game_id=game_id, user_id=state.players[1].user_id)
+    assert actions["actions"] == ["peng"]
+
+    peng_result = service.peng(game_id=game_id, user_id=state.players[1].user_id)
+    assert peng_result["event_type"] == "game_peng"
+    assert peng_result["turn_seat"] == 1
+    assert state.players[1].open_meld_count == 1
+    assert state.players[1].open_melds == [["m1", "m1", "m1"]]
+
+
+def test_deal_round_resets_open_melds():
+    service = GameService()
+    players = [RoomPlayer(room_id=1, user_id=i + 1, seat=i, ready=True) for i in range(4)]
+    meta = service.create_game(room_id=1, players=players)
+
+    game_id = meta["game_id"]
+    state = service._games[game_id]
+    state.players[0].open_meld_count = 1
+    state.players[0].open_melds = [["m2", "m2", "m2"]]
+
+    service.deal_round(state)
+
+    assert state.players[0].open_meld_count == 0
+    assert state.players[0].open_melds == []
 
 
 def test_create_game_with_missing_players_fills_bots():
@@ -71,7 +119,7 @@ def test_create_game_with_missing_players_fills_bots():
     assert state["my_seat"] == 0
 
 
-def test_bot_auto_plays_until_human_turn(monkeypatch):
+def test_bot_auto_progress_step(monkeypatch):
     monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: False)
 
     service = GameService()
@@ -82,11 +130,12 @@ def test_bot_auto_plays_until_human_turn(monkeypatch):
     first_tile = state["my_hand"][0]
 
     event = service.discard(meta["game_id"], user_id=21, tile=first_tile)
+    step_event = service.auto_progress(meta["game_id"])
     final_state = service.get_state(meta["game_id"], user_id=21)
 
-    assert len(event["events"]) >= 2
-    assert final_state["status"] == "waiting_for_discard"
-    assert final_state["turn_seat"] == 0
+    assert len(event["events"]) == 1
+    assert step_event is not None
+    assert final_state["status"] in {"waiting_for_discard", "waiting_for_peng"}
 
 
 def test_available_actions_includes_tsumo_for_seven_pairs():

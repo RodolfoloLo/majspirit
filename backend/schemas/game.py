@@ -14,6 +14,8 @@ class GameStatePlayerResp(BaseModel):
     nickname: str
     hand_count: int
     discards: list[str]
+    open_meld_count: int = 0
+    open_melds: list[list[str]] = Field(default_factory=list)
 
 
 class LastDiscardResp(BaseModel):
@@ -35,6 +37,7 @@ class GameStateResp(BaseModel):
     my_seat: int | None = None
     my_hand: list[str] | None = None
     pending_ron: list[int]
+    pending_peng: list[int] = Field(default_factory=list)
     last_discard: LastDiscardResp | None = None
 
 
@@ -49,6 +52,8 @@ class RuntimePlayerState(BaseModel):
     seat: int
     hand: list[str] = Field(default_factory=list)
     discards: list[str] = Field(default_factory=list)
+    open_meld_count: int = 0
+    open_melds: list[list[str]] = Field(default_factory=list)
     is_bot: bool = False
     nickname: str
 
@@ -89,6 +94,7 @@ class RuntimeGameState(BaseModel):
     initial_scores: list[int]
     players: dict[int, RuntimePlayerState]
     pending_ron: list[int] = Field(default_factory=list)
+    pending_peng: list[int] = Field(default_factory=list)
     last_discard: RuntimeLastDiscard | None = None
     current_round: RuntimeRoundState | None = None
     round_logs: list[RuntimeRoundState] = Field(default_factory=list)

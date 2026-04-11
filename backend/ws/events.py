@@ -7,6 +7,7 @@ ROOM_STARTED = "room_started"
 
 GAME_DRAWN = "game_drawn"
 GAME_DISCARDED = "game_discarded"
+GAME_PENG = "game_peng"
 GAME_WIN = "game_win"
 GAME_ROUND_END = "game_round_end"
 GAME_MATCH_END = "game_match_end"
