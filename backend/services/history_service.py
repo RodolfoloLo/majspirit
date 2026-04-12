@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.exceptions.business import MatchHistoryNotFound
 from backend.repositories.history_repo import HistoryRepo
+from backend.schemas.history import HistoryItemResp, HistoryListResp, MatchDetailResp
 
 
 class HistoryService:
@@ -9,25 +10,27 @@ class HistoryService:
         self.db = db
         self.repo = HistoryRepo(db)
 
-    async def get_my_history(self, user_id: int, page: int, size: int) -> dict:
+    async def get_my_history(self, user_id: int, page: int, size: int) -> HistoryListResp:
         rows, total = await self.repo.list_by_user(user_id=user_id, page=page, size=size)
-        return {
-            "items": [
-                {
-                    "match_id": row.match_id,
-                    "finished_at": row.created_at,
-                    "rank": row.rank,
-                    "final_score": row.final_score,
-                    "score_delta": row.score_delta,
-                }
-                for row in rows
-            ],
-            "page": page,
-            "size": size,
-            "total": total,
-        }
+        items = [
+            HistoryItemResp(
+                match_id=row.match_id,
+                finished_at=row.created_at,
+                rank=row.rank,
+                final_score=row.final_score,
+                score_delta=row.score_delta,
+            )
+            for row in rows
+        ]
 
-    async def get_match_detail(self, user_id: int, match_id: int) -> dict:
+        return HistoryListResp(
+            items=items,
+            page=page,
+            size=size,
+            total=total,
+        )
+
+    async def get_match_detail(self, user_id: int, match_id: int) -> MatchDetailResp:
         if not await self.repo.user_has_match(user_id=user_id, match_id=match_id):
             raise MatchHistoryNotFound()
 
@@ -35,12 +38,12 @@ class HistoryService:
         if not detail:
             raise MatchHistoryNotFound()
 
-        return {
-            "match_id": detail.match_id,
-            "room_id": detail.room_id,
-            "created_at": detail.created_at,
-            "detail": detail.payload,
-        }
+        return MatchDetailResp(
+            match_id=detail.match_id,
+            room_id=detail.room_id,
+            created_at=detail.created_at,
+            detail=detail.payload,
+        )
 
     async def save_match_result(self, summary: dict) -> None:
         ranking = summary.get("ranking", [])

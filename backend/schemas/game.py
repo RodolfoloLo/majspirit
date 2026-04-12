@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 class DiscardReq(BaseModel):
     tile: str = Field(min_length=2, max_length=10)
 
-
 class GameStatePlayerResp(BaseModel):
     seat: int
     user_id: int
@@ -27,9 +26,9 @@ class LastDiscardResp(BaseModel):
 class GameStateResp(BaseModel):
     game_id: int
     match_id: int
-    round_index: int
-    dealer_seat: int
-    turn_seat: int
+    round_index: int #当前第几轮了,从0开始.
+    dealer_seat: int #本轮的庄家是哪个座位.
+    turn_seat: int #现在轮到哪个座位操作了.
     wall_remaining: int
     status: str
     scores: list[int]

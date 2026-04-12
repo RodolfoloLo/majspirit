@@ -19,10 +19,10 @@ REQUIRED_PATHS = {
     "/api/v1/games/{game_id}/state",
     "/api/v1/games/{game_id}/actions/available",
     "/api/v1/games/{game_id}/actions/discard",
-    "/api/v1/games/{game_id}/actions/draw",
     "/api/v1/games/{game_id}/actions/tsumo",
     "/api/v1/games/{game_id}/actions/ron",
     "/api/v1/games/{game_id}/actions/peng",
+    "/api/v1/games/{game_id}/actions/pass",
     "/api/v1/history/me",
     "/api/v1/history/matches/{match_id}",
     "/api/v1/ws",
@@ -46,10 +46,10 @@ REQUIRED_PATHS = {
         ("GET", "/api/v1/games/1/state", None),
         ("GET", "/api/v1/games/1/actions/available", None),
         ("POST", "/api/v1/games/1/actions/discard", {"tile": "m1"}),
-        ("POST", "/api/v1/games/1/actions/draw", {}),
         ("POST", "/api/v1/games/1/actions/tsumo", {}),
         ("POST", "/api/v1/games/1/actions/ron", {}),
         ("POST", "/api/v1/games/1/actions/peng", {}),
+        ("POST", "/api/v1/games/1/actions/pass", {}),
     ],
 )
 def test_protected_endpoints_require_auth(client, method: str, path: str, payload: dict | None):

@@ -32,36 +32,25 @@ class GameService:
         self._games: dict[int, RuntimeGameState] = {} #内存中的游戏状态字典,key是game_id,value是游戏的运行时状态,所有的游戏状态都存在内存里.
         self._locks: dict[int, asyncio.Lock] = {} #每个游戏对应的异步锁,这是为了并发安全!因为异步服务可能同时收到同一个游戏的多个请求,如果不加锁,会导致状态被并发修改,出现数据不一致的问题,所以每一个游戏有一个独立的锁,保证同一个游戏是串行的.
 
+    #获取游戏操作锁,如果游戏不存在就创建一个新的锁,返回这个锁的上下文管理器.
     def lock_for(self, game_id: int) -> asyncio.Lock:
         if game_id not in self._locks:
             self._locks[game_id] = asyncio.Lock()
         return self._locks[game_id]
-
-    def ordered_seats(self, state: RuntimeGameState, origin_seat: int) -> list[int]:
-        return [
-            (origin_seat + step) % SEAT_COUNT
-            for step in range(1, SEAT_COUNT)
-            if (origin_seat + step) % SEAT_COUNT in state.players
-        ]
-
-    def can_win(self, player: RuntimePlayerState, extra_tile: str | None = None) -> bool:
-        tiles = player.hand[:]
-        if extra_tile is not None:
-            tiles.append(extra_tile)
-        required_len = 14 - (player.open_meld_count * 3)
-        if len(tiles) != required_len:
-            return False
-        return is_standard_win(tiles)
-
+    
+    #在room_service.py中被调用开始比赛.
     def create_game(self, room_id: int, players: list[RoomPlayer]) -> dict[str, int]:
+        #1,把玩家按座位排序.
         sorted_players = sorted(players, key=lambda player: player.seat)
         if not sorted_players:
             raise ActionNotAvailable()
 
+        #检查座位是否合法,座位编号必须在0到SEAT_COUNT-1之间,并且不能重复.如果有玩家的座位编号不合法或者有重复的座位编号,就抛出异常.
         used_seats = {player.seat for player in sorted_players}
         if any(seat < 0 or seat >= SEAT_COUNT for seat in used_seats):
             raise ActionNotAvailable()
 
+        #2,构建游戏状态的玩家信息,把玩家的user_id,seat,nickname等信息保存到游戏状态中.如果有座位没有玩家,就用一个BOT玩家来占位.
         player_state: dict[int, RuntimePlayerState] = {}
         for player in sorted_players:
             player_state[player.seat] = RuntimePlayerState(
@@ -83,6 +72,7 @@ class GameService:
             )
             bot_index += 1
 
+        #3,初始化游戏状态.
         game_id = next(self.game_id_counter)
         match_id = next(self.match_id_counter)
         state = RuntimeGameState(
@@ -99,46 +89,13 @@ class GameService:
             created_at=datetime.now(timezone.utc).isoformat(),
         )
 
+        #4,发牌.
         self.deal_round(state)
+        #5,把游戏状态保存到内存.
         self._games[game_id] = state
         return {"game_id": game_id, "match_id": match_id}
 
-    def require_game(self, game_id: int) -> RuntimeGameState:
-        state = self._games.get(game_id)
-        if not state:
-            raise GameNotFound()
-        return state
-
-    #检查游戏是否存在
-    def has_game(self, game_id: int) -> bool:
-        return game_id in self._games
-
-    #导出游戏状态为字典
-    def export_game_state(self, game_id: int) -> dict[str, Any]:
-        state = self.require_game(game_id)
-        return state.model_dump()
-
-    #从字典导入游戏状态,并存储在内存中
-    def import_game_state(self, payload: dict[str, Any]) -> RuntimeGameState:
-        state = RuntimeGameState.model_validate(payload)
-        self._games[state.game_id] = state
-        return state
-
-    def next_seat(self, seat: int) -> int:
-        return (seat + 1) % SEAT_COUNT
-
-    def seat_of_user(self, state: RuntimeGameState, user_id: int) -> int | None:
-        for seat, payload in state.players.items():
-            if payload.user_id == user_id:
-                return seat
-        return None
-
-    def is_bot_seat(self, state: RuntimeGameState, seat: int) -> bool:
-        return state.players[seat].is_bot
-
-    def pick_bot_tile(self, hand: list[str]) -> str:
-        return sorted(hand)[-1]
-
+    #发牌器
     def deal_round(self, state: RuntimeGameState) -> None:
         wall = shuffle_tiles(build_tiles())
         dealer_seat = state.dealer_seat
@@ -168,6 +125,63 @@ class GameService:
             initial_wall=wall[:],
         )
 
+    #找到下家
+    def next_seat(self, seat: int) -> int:
+        return (seat + 1) % SEAT_COUNT
+
+    #检查游戏是否存在
+    def has_game(self, game_id: int) -> bool:
+        return game_id in self._games
+
+    #根据游戏ID获取游戏状态,如果游戏不存在就抛出异常.
+    def require_game(self, game_id: int) -> RuntimeGameState:
+        state = self._games.get(game_id)
+        if not state:
+            raise GameNotFound()
+        return state
+
+    #导出游戏状态为字典
+    def export_game_state(self, game_id: int) -> dict[str, Any]:
+        state = self.require_game(game_id)
+        return state.model_dump()
+
+    #从字典导入游戏状态,并存储在内存中
+    def import_game_state(self, payload: dict[str, Any]) -> RuntimeGameState:
+        state = RuntimeGameState.model_validate(payload)
+        self._games[state.game_id] = state
+        return state
+
+    #按顺序返回当前玩家的上家,对家,下家.
+    def ordered_seats(self, state: RuntimeGameState, origin_seat: int) -> list[int]:
+        return [
+            (origin_seat + step) % SEAT_COUNT
+            for step in range(1, SEAT_COUNT)
+            if (origin_seat + step) % SEAT_COUNT in state.players
+        ]
+
+    def seat_of_user(self, state: RuntimeGameState, user_id: int) -> int | None:
+        for seat, payload in state.players.items():
+            if payload.user_id == user_id:
+                return seat
+        return None
+
+    def is_bot_seat(self, state: RuntimeGameState, seat: int) -> bool:
+        return state.players[seat].is_bot
+
+    #检查玩家是否可以和牌.
+    def can_win(self, player: RuntimePlayerState, extra_tile: str | None = None) -> bool:
+        tiles = player.hand[:]
+        if extra_tile is not None:
+            tiles.append(extra_tile)
+        required_len = 14 - (player.open_meld_count * 3)
+        if len(tiles) != required_len:
+            return False
+        return is_standard_win(tiles)
+
+    def pick_bot_tile(self, hand: list[str]) -> str:
+        return sorted(hand)[-1]
+
+    #记录每一个操作的日志,这些日志会保存在游戏状态里,在每一轮结束的时候会被保存到round_logs里,等比赛结束的时候可以用来回放或者分析.
     def record_turn(
         self,
         state: RuntimeGameState,
@@ -195,6 +209,246 @@ class GameService:
             "game_id": state.game_id,
             "match_id": state.match_id,
         }
+
+    def compose_action_result(self, state: RuntimeGameState, events: list[dict[str, Any]]) -> dict[str, Any]:
+        if not events:
+            raise ActionNotAvailable()
+
+        result = dict(events[-1])
+        result["events"] = events
+        result["status"] = state.status
+        result["turn_seat"] = state.turn_seat
+        return result
+
+    #玩家打牌的核心逻辑
+    def discard_by_seat(self, state: RuntimeGameState, seat: int, tile: str) -> dict[str, Any]:
+        player = state.players[seat]
+        #1,检查这张牌是否在玩家手里.
+        if tile not in player.hand:
+            raise InvalidTile()
+
+        #2,这张牌从手牌删除,加入到弃牌.
+        player.hand.remove(tile)
+        player.discards.append(tile)
+        #3,记录这个操作的日志.
+        self.record_turn(state, action="discard", seat=seat, tile=tile)
+
+        #4,检查有没有人能荣和
+        next_seat = self.next_seat(seat)
+        state.last_discard = RuntimeLastDiscard(seat=seat, tile=tile, next_turn_seat=next_seat)
+
+        ron_candidates = [
+            candidate
+            for candidate in self.ordered_seats(state, seat)
+            if self.can_win(state.players[candidate], tile)
+        ]
+        if ron_candidates:
+            winner_seat = ron_candidates[0]
+            payload = self.ron_by_seat(state, winner_seat)
+            payload.update({"trigger_discard_seat": seat, "trigger_discard_tile": tile})
+            return payload
+
+        #5,检查有没有人能碰牌
+        peng_candidates = [
+            candidate
+            for candidate in self.ordered_seats(state, seat)
+            if state.players[candidate].hand.count(tile) >= 2
+        ]
+        if peng_candidates:
+            state.status = "waiting_for_peng"
+            state.pending_ron = []
+            state.pending_peng = peng_candidates
+
+            payload = self.build_event_base(state, GAME_DISCARDED)
+            payload.update(
+                {
+                    "seat": seat,
+                    "tile": tile,
+                    "status": state.status,
+                    "pending_ron": [],
+                    "pending_peng": peng_candidates,
+                    "next_turn_seat": next_seat,
+                }
+            )
+            return payload
+
+        payload = self.advance_after_discard(state, seat)
+        payload.update({"seat": seat, "tile": tile})
+        return payload
+
+    def advance_after_discard(self, state: RuntimeGameState, discarded_seat: int) -> dict[str, Any]:
+        next_seat = self.next_seat(discarded_seat)
+        state.pending_ron = []
+        state.pending_peng = []
+
+        if not state.wall:
+            result = {
+                "type": "draw",
+                "reason": "wall_exhausted",
+                "scores": state.scores,
+            }
+            return self.build_round_result_payload(state, result)
+
+        drawn = state.wall.pop(0)
+        state.players[next_seat].hand.append(drawn)
+        state.turn_seat = next_seat
+        state.status = "waiting_for_discard"
+        self.record_turn(state, action="draw", seat=next_seat, tile=drawn)
+
+        payload = self.build_event_base(state, GAME_DISCARDED)
+        payload.update(
+            {
+                "next_turn_seat": next_seat,
+                "status": state.status,
+            }
+        )
+        return payload
+
+    #自动推进游戏,如果当前状态是等待玩家操作,但是玩家是BOT或者超时了,就自动帮他操作或者跳过他的操作.
+    def auto_progress(self, game_id: int) -> dict[str, Any] | None:
+        state = self.require_game(game_id)
+        if state.status == "match_end":
+            return None
+
+        if state.status == "waiting_for_peng":
+            if not state.last_discard:
+                return None
+            if not state.pending_peng:
+                return self.advance_after_discard(state, state.last_discard.seat)
+
+            candidate = state.pending_peng[0]
+            if self.is_bot_seat(state, candidate):
+                return self.peng_by_seat(state, candidate)
+
+            # 真人玩家的碰牌改为显式选择: 等待其点击 碰牌/不碰。
+            return None
+
+        if state.status != "waiting_for_discard":
+            return None
+
+        turn_seat = state.turn_seat
+        player = state.players[turn_seat]
+        if not player.is_bot:
+            return None
+
+        if self.can_win(player):
+            return self.tsumo_by_seat(state, turn_seat)
+
+        tile = self.pick_bot_tile(player.hand)
+        return self.discard_by_seat(state, turn_seat, tile)
+
+    def peng_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
+        if state.status != "waiting_for_peng" or not state.last_discard:
+            raise ActionNotAvailable()
+        if seat not in state.pending_peng:
+            raise ActionNotAvailable()
+        if state.pending_peng and seat != state.pending_peng[0]:
+            raise NotYourTurn()
+
+        tile = state.last_discard.tile
+        from_seat = state.last_discard.seat
+        player = state.players[seat]
+        if player.hand.count(tile) < 2:
+            raise ActionNotAvailable()
+
+        player.hand.remove(tile)
+        player.hand.remove(tile)
+        player.open_meld_count += 1
+        player.open_melds.append([tile, tile, tile])
+
+        state.pending_peng = []
+        state.pending_ron = []
+        state.turn_seat = seat
+        state.status = "waiting_for_discard"
+
+        self.record_turn(state, action="peng", seat=seat, tile=tile, from_seat=from_seat)
+        payload = self.build_event_base(state, GAME_PENG)
+        payload.update(
+            {
+                "seat": seat,
+                "from_seat": from_seat,
+                "tile": tile,
+                "status": state.status,
+                "next_turn_seat": seat,
+            }
+        )
+        return payload
+
+    def pass_peng_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
+        if state.status != "waiting_for_peng" or not state.last_discard:
+            raise ActionNotAvailable()
+        if seat not in state.pending_peng:
+            raise ActionNotAvailable()
+        if state.pending_peng and seat != state.pending_peng[0]:
+            raise NotYourTurn()
+
+        tile = state.last_discard.tile
+        state.pending_peng = state.pending_peng[1:]
+        self.record_turn(state, action="pass_peng", seat=seat, tile=tile)
+
+        if state.pending_peng:
+            payload = self.build_event_base(state, GAME_DISCARDED)
+            payload.update(
+                {
+                    "seat": seat,
+                    "tile": tile,
+                    "status": state.status,
+                    "pending_ron": [],
+                    "pending_peng": state.pending_peng,
+                    "next_turn_seat": state.last_discard.next_turn_seat,
+                }
+            )
+            return payload
+
+        return self.advance_after_discard(state, state.last_discard.seat)
+
+    def tsumo_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
+        for target_seat in range(SEAT_COUNT):
+            if target_seat == seat:
+                continue
+            state.scores[target_seat] -= 1000
+            state.scores[seat] += 1000
+
+        result = {
+            "type": "tsumo",
+            "winner_seat": seat,
+            "scores": state.scores,
+        }
+        self.record_turn(state, action="tsumo", seat=seat)
+        payload = self.build_round_result_payload(state, result)
+        if payload["event_type"] != GAME_MATCH_END:
+            payload["event_type"] = GAME_WIN
+        return payload
+
+    def ron_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
+        if not state.last_discard:
+            raise ActionNotAvailable()
+
+        tile = state.last_discard.tile
+        loser_seat = state.last_discard.seat
+        player = state.players[seat]
+
+        if not self.can_win(player, tile):
+            raise ActionNotAvailable()
+
+        state.pending_ron = []
+        state.pending_peng = []
+
+        state.scores[seat] += 2000
+        state.scores[loser_seat] -= 2000
+        self.record_turn(state, action="ron", seat=seat, tile=tile, from_seat=loser_seat)
+
+        result = {
+            "type": "ron",
+            "winner_seat": seat,
+            "loser_seat": loser_seat,
+            "tile": tile,
+            "scores": state.scores,
+        }
+        payload = self.build_round_result_payload(state, result)
+        if payload["event_type"] != GAME_MATCH_END:
+            payload["event_type"] = GAME_WIN
+        return payload
 
     def build_round_result_payload(self, state: RuntimeGameState, result: dict[str, Any]) -> dict[str, Any]:
         if not state.current_round:
@@ -254,210 +508,42 @@ class GameService:
             entry["rank"] = rank
         return entries
 
-    def advance_after_discard(self, state: RuntimeGameState, discarded_seat: int) -> dict[str, Any]:
-        next_seat = self.next_seat(discarded_seat)
-        state.pending_ron = []
-        state.pending_peng = []
+    def is_match_finished(self, game_id: int) -> bool:
+        return self.require_game(game_id).status == "match_end"
 
-        if not state.wall:
-            result = {
-                "type": "draw",
-                "reason": "wall_exhausted",
-                "scores": state.scores,
-            }
-            return self.build_round_result_payload(state, result)
+    def is_persisted(self, game_id: int) -> bool:
+        return self.require_game(game_id).persisted
 
-        drawn = state.wall.pop(0)
-        state.players[next_seat].hand.append(drawn)
-        state.turn_seat = next_seat
-        state.status = "waiting_for_discard"
-        self.record_turn(state, action="draw", seat=next_seat, tile=drawn)
+    def mark_persisted(self, game_id: int) -> None:
+        self.require_game(game_id).persisted = True
 
-        payload = self.build_event_base(state, GAME_DISCARDED)
-        payload.update(
-            {
-                "next_turn_seat": next_seat,
-                "status": state.status,
-            }
-        )
-        return payload
-
-    def discard_by_seat(self, state: RuntimeGameState, seat: int, tile: str) -> dict[str, Any]:
-        player = state.players[seat]
-        if tile not in player.hand:
-            raise InvalidTile()
-
-        player.hand.remove(tile)
-        player.discards.append(tile)
-        self.record_turn(state, action="discard", seat=seat, tile=tile)
-
-        next_seat = self.next_seat(seat)
-        state.last_discard = RuntimeLastDiscard(seat=seat, tile=tile, next_turn_seat=next_seat)
-
-        ron_candidates = [
-            candidate
-            for candidate in self.ordered_seats(state, seat)
-            if self.can_win(state.players[candidate], tile)
-        ]
-        if ron_candidates:
-            # Ron always has top priority and is auto-resolved.
-            winner_seat = ron_candidates[0]
-            payload = self.ron_by_seat(state, winner_seat)
-            payload.update({"trigger_discard_seat": seat, "trigger_discard_tile": tile})
-            return payload
-
-        peng_candidates = [
-            candidate
-            for candidate in self.ordered_seats(state, seat)
-            if state.players[candidate].hand.count(tile) >= 2
-        ]
-        if peng_candidates:
-            state.status = "waiting_for_peng"
-            state.pending_ron = []
-            state.pending_peng = peng_candidates
-
-            payload = self.build_event_base(state, GAME_DISCARDED)
-            payload.update(
-                {
-                    "seat": seat,
-                    "tile": tile,
-                    "status": state.status,
-                    "pending_ron": [],
-                    "pending_peng": peng_candidates,
-                    "next_turn_seat": next_seat,
-                }
-            )
-            return payload
-
-        payload = self.advance_after_discard(state, seat)
-        payload.update({"seat": seat, "tile": tile})
-        return payload
-
-    def peng_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
-        if state.status != "waiting_for_peng" or not state.last_discard:
-            raise ActionNotAvailable()
-        if seat not in state.pending_peng:
+    def build_match_result(self, game_id: int) -> dict[str, Any]:
+        state = self.require_game(game_id)
+        if state.status != "match_end":
             raise ActionNotAvailable()
 
-        tile = state.last_discard.tile
-        from_seat = state.last_discard.seat
-        player = state.players[seat]
-        if player.hand.count(tile) < 2:
-            raise ActionNotAvailable()
-
-        player.hand.remove(tile)
-        player.hand.remove(tile)
-        player.open_meld_count += 1
-        player.open_melds.append([tile, tile, tile])
-
-        state.pending_peng = []
-        state.pending_ron = []
-        state.turn_seat = seat
-        state.status = "waiting_for_discard"
-
-        self.record_turn(state, action="peng", seat=seat, tile=tile, from_seat=from_seat)
-        payload = self.build_event_base(state, GAME_PENG)
-        payload.update(
+        ranking = state.final_ranking or self.build_ranking(state)
+        players = [
             {
                 "seat": seat,
-                "from_seat": from_seat,
-                "tile": tile,
-                "status": state.status,
-                "next_turn_seat": seat,
+                "user_id": player.user_id,
+                "is_bot": player.is_bot,
+                "nickname": player.nickname,
             }
-        )
-        return payload
+            for seat, player in sorted(state.players.items())
+        ]
 
-    def tsumo_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
-        for target_seat in range(SEAT_COUNT):
-            if target_seat == seat:
-                continue
-            state.scores[target_seat] -= 1000
-            state.scores[seat] += 1000
-
-        result = {
-            "type": "tsumo",
-            "winner_seat": seat,
-            "scores": state.scores,
+        return {
+            "game_id": state.game_id,
+            "match_id": state.match_id,
+            "room_id": state.room_id,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "players": players,
+            "initial_scores": state.initial_scores,
+            "final_scores": state.scores,
+            "ranking": ranking,
+            "rounds": [round_state.model_dump() for round_state in state.round_logs],
         }
-        self.record_turn(state, action="tsumo", seat=seat)
-        payload = self.build_round_result_payload(state, result)
-        if payload["event_type"] != GAME_MATCH_END:
-            payload["event_type"] = GAME_WIN
-        return payload
-
-    def ron_by_seat(self, state: RuntimeGameState, seat: int) -> dict[str, Any]:
-        if not state.last_discard:
-            raise ActionNotAvailable()
-
-        tile = state.last_discard.tile
-        loser_seat = state.last_discard.seat
-        player = state.players[seat]
-
-        if not self.can_win(player, tile):
-            raise ActionNotAvailable()
-
-        state.pending_ron = []
-        state.pending_peng = []
-
-        state.scores[seat] += 2000
-        state.scores[loser_seat] -= 2000
-        self.record_turn(state, action="ron", seat=seat, tile=tile, from_seat=loser_seat)
-
-        result = {
-            "type": "ron",
-            "winner_seat": seat,
-            "loser_seat": loser_seat,
-            "tile": tile,
-            "scores": state.scores,
-        }
-        payload = self.build_round_result_payload(state, result)
-        if payload["event_type"] != GAME_MATCH_END:
-            payload["event_type"] = GAME_WIN
-        return payload
-
-    def auto_progress(self, game_id: int) -> dict[str, Any] | None:
-        state = self.require_game(game_id)
-        if state.status == "match_end":
-            return None
-
-        if state.status == "waiting_for_peng":
-            if not state.last_discard:
-                return None
-            if not state.pending_peng:
-                return self.advance_after_discard(state, state.last_discard.seat)
-
-            candidate = state.pending_peng[0]
-            if self.is_bot_seat(state, candidate):
-                return self.peng_by_seat(state, candidate)
-
-            # No explicit pass action: human peng window expires automatically.
-            self.record_turn(state, action="auto_skip_peng", seat=candidate, tile=state.last_discard.tile)
-            return self.advance_after_discard(state, state.last_discard.seat)
-
-        if state.status != "waiting_for_discard":
-            return None
-
-        turn_seat = state.turn_seat
-        player = state.players[turn_seat]
-        if not player.is_bot:
-            return None
-
-        if self.can_win(player):
-            return self.tsumo_by_seat(state, turn_seat)
-
-        tile = self.pick_bot_tile(player.hand)
-        return self.discard_by_seat(state, turn_seat, tile)
-
-    def compose_action_result(self, state: RuntimeGameState, events: list[dict[str, Any]]) -> dict[str, Any]:
-        if not events:
-            raise ActionNotAvailable()
-
-        result = dict(events[-1])
-        result["events"] = events
-        result["status"] = state.status
-        result["turn_seat"] = state.turn_seat
-        return result
 
     def get_state(self, game_id: int, user_id: int | None = None) -> dict[str, Any]:
         state = self.require_game(game_id)
@@ -507,8 +593,8 @@ class GameService:
             return GameActionsResp(seat=None, actions=[], deadline_ms=0).model_dump()
 
         if state.status == "waiting_for_peng":
-            if seat in state.pending_peng and not self.is_bot_seat(state, seat):
-                return GameActionsResp(seat=seat, actions=["peng"], deadline_ms=2500).model_dump()
+            if state.pending_peng and seat == state.pending_peng[0] and not self.is_bot_seat(state, seat):
+                return GameActionsResp(seat=seat, actions=["peng", "pass"], deadline_ms=0).model_dump()
             return GameActionsResp(seat=seat, actions=[], deadline_ms=0).model_dump()
 
         turn_player = state.players[state.turn_seat]
@@ -566,6 +652,20 @@ class GameService:
         events = [self.peng_by_seat(state, seat)]
         return self.compose_action_result(state, events)
 
+    def pass_peng(self, game_id: int, user_id: int) -> dict[str, Any]:
+        state = self.require_game(game_id)
+        if state.status != "waiting_for_peng":
+            raise ActionNotAvailable()
+
+        seat = self.seat_of_user(state, user_id)
+        if seat is None or seat not in state.pending_peng:
+            raise ActionNotAvailable()
+        if self.is_bot_seat(state, seat):
+            raise ActionNotAvailable()
+
+        events = [self.pass_peng_by_seat(state, seat)]
+        return self.compose_action_result(state, events)
+
     def ron(self, game_id: int, user_id: int) -> dict[str, Any]:
         state = self.require_game(game_id)
         if state.status != "waiting_for_ron" or not state.last_discard:
@@ -579,43 +679,6 @@ class GameService:
 
         events = [self.ron_by_seat(state, seat)]
         return self.compose_action_result(state, events)
-
-    def is_match_finished(self, game_id: int) -> bool:
-        return self.require_game(game_id).status == "match_end"
-
-    def is_persisted(self, game_id: int) -> bool:
-        return self.require_game(game_id).persisted
-
-    def mark_persisted(self, game_id: int) -> None:
-        self.require_game(game_id).persisted = True
-
-    def build_match_result(self, game_id: int) -> dict[str, Any]:
-        state = self.require_game(game_id)
-        if state.status != "match_end":
-            raise ActionNotAvailable()
-
-        ranking = state.final_ranking or self.build_ranking(state)
-        players = [
-            {
-                "seat": seat,
-                "user_id": player.user_id,
-                "is_bot": player.is_bot,
-                "nickname": player.nickname,
-            }
-            for seat, player in sorted(state.players.items())
-        ]
-
-        return {
-            "game_id": state.game_id,
-            "match_id": state.match_id,
-            "room_id": state.room_id,
-            "finished_at": datetime.now(timezone.utc).isoformat(),
-            "players": players,
-            "initial_scores": state.initial_scores,
-            "final_scores": state.scores,
-            "ranking": ranking,
-            "rounds": [round_state.model_dump() for round_state in state.round_logs],
-        }
 
     def action_not_available(self) -> None:
         raise ActionNotAvailable()

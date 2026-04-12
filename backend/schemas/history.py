@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -16,3 +17,10 @@ class HistoryListResp(BaseModel):
     page: int
     size: int
     total: int | None = None
+
+
+class MatchDetailResp(BaseModel):
+    match_id: int
+    room_id: int
+    created_at: datetime | None = None
+    detail: dict[str, Any]

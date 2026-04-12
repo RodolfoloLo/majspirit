@@ -13,7 +13,7 @@ class WSManager:
         await ws.accept()
         self.user_sockets[user_id].add(ws)
 
-    #为什么disconnect() 方法是同步函数???
+    #为什么disconnect() 方法是同步函数???:因为它只是修改了内存中的数据结构(从集合中移除一个 WebSocket 对象)，并不涉及任何异步操作，所以不需要使用 async 定义为异步函数。
     def disconnect(self, user_id: int, ws: WebSocket):
         sockets = self.user_sockets.get(user_id)
         if not sockets:

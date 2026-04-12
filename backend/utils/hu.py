@@ -43,7 +43,7 @@ def _all_melds(counter: Counter) -> bool:
 
 
     remaining = [t for t, cnt in counter.items() if cnt > 0]
-    tile = min(remaining, key=_tile_sort_key) if remaining else None
+    tile = min(remaining, key=_tile_sort_key) if remaining else None #找到剩余牌中排序最小的一张牌,如果没有剩余牌了就返回None.
     if tile is None:
         return True
 
@@ -58,7 +58,7 @@ def _all_melds(counter: Counter) -> bool:
     if _is_suit(tile):
         suit = tile[0]
         n = int(tile[1])
-        if n <= 7 and _remove_sequence(counter, suit, n):
+        if n <= 7 and _remove_sequence(counter, suit, n): #如果这张牌是数牌且数字不大于7就尝试把它和后两张牌组成一个顺子,如果成功了就继续递归检查剩下的牌能不能组成顺子.
             if _all_melds(counter):
                 return True
             # 回溯
@@ -120,18 +120,19 @@ def is_common_four_melds_one_pair(tiles14: list[str]) -> bool:
         return False
 
     counter = Counter(tiles14)
+    #counter的items()方法可以返回一个包含所有牌及其数量的列表.
+    #枚举所有可能的雀头:也就是哪两张牌是对子.
     for tile, cnt in list(counter.items()):
         if cnt >= 2:
+            #先把雀头拿出来,然后检查剩下的牌能不能组成四个面子.
             counter[tile] -= 2
             if _all_melds(counter.copy()):
                 return True
-            counter[tile] += 2
+            counter[tile] += 2 #回溯,试下一个可能的雀头.
     return False
 
 
 def is_standard_win(tiles14: list[str]) -> bool:
-    # Keep public function name for compatibility with existing service calls,
-    # while supporting a few common special winning patterns.
     return (
         is_common_four_melds_one_pair(tiles14)
         or is_seven_pairs(tiles14)

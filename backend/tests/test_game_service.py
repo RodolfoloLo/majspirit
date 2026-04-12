@@ -79,13 +79,54 @@ def test_discard_opens_peng_window(monkeypatch):
     assert 1 in result["pending_peng"]
 
     actions = service.get_available_actions(game_id=game_id, user_id=state.players[1].user_id)
-    assert actions["actions"] == ["peng"]
+    assert actions["actions"] == ["peng", "pass"]
+    assert actions["deadline_ms"] == 0
 
     peng_result = service.peng(game_id=game_id, user_id=state.players[1].user_id)
     assert peng_result["event_type"] == "game_peng"
     assert peng_result["turn_seat"] == 1
     assert state.players[1].open_meld_count == 1
     assert state.players[1].open_melds == [["m1", "m1", "m1"]]
+
+
+def test_auto_progress_waits_for_human_peng_choice(monkeypatch):
+    monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: False)
+
+    service = GameService()
+    players = [RoomPlayer(room_id=1, user_id=i + 1, seat=i, ready=True) for i in range(4)]
+    meta = service.create_game(room_id=1, players=players)
+
+    game_id = meta["game_id"]
+    state = service._games[game_id]
+    state.players[0].hand = ["m1"] + state.players[0].hand[1:]
+    state.players[1].hand = ["m1", "m1"] + state.players[1].hand[2:]
+
+    service.discard(game_id, state.players[0].user_id, "m1")
+    step = service.auto_progress(game_id)
+
+    assert step is None
+    assert state.status == "waiting_for_peng"
+    assert state.pending_peng == [1]
+
+
+def test_pass_peng_continues_game(monkeypatch):
+    monkeypatch.setattr("backend.services.game_service.is_standard_win", lambda tiles: False)
+
+    service = GameService()
+    players = [RoomPlayer(room_id=1, user_id=i + 1, seat=i, ready=True) for i in range(4)]
+    meta = service.create_game(room_id=1, players=players)
+
+    game_id = meta["game_id"]
+    state = service._games[game_id]
+    state.players[0].hand = ["m1"] + state.players[0].hand[1:]
+    state.players[1].hand = ["m1", "m1"] + state.players[1].hand[2:]
+
+    service.discard(game_id, state.players[0].user_id, "m1")
+    result = service.pass_peng(game_id, state.players[1].user_id)
+
+    assert result["status"] == "waiting_for_discard"
+    assert state.pending_peng == []
+    assert state.turn_seat == 1
 
 
 def test_deal_round_resets_open_melds():

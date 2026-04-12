@@ -5,6 +5,7 @@ const {
   actions,
   bottomSeat,
   doDiscard,
+  doPassPeng,
   doPeng,
   doTsumo,
   effect,
@@ -336,6 +337,14 @@ const {
           :disabled="!actions.actions.includes('peng')"
         >
           碰牌
+        </button>
+        <button
+          class="ink-btn-ghost"
+          type="button"
+          @click="doPassPeng"
+          :disabled="!actions.actions.includes('pass')"
+        >
+          不碰
         </button>
       </div>
 

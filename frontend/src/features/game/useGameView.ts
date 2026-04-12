@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
-import { discardTile, getGameActions, getGameState, peng, tsumo } from "../../api/games";
+import { discardTile, getGameActions, getGameState, passPeng, peng, tsumo } from "../../api/games";
 import { getStoredToken } from "../../lib/token";
 import { useUiStore } from "../../stores/ui";
 import type { GameActions, GameState } from "../../types/api";
@@ -233,6 +233,16 @@ export function useGameView() {
     }
   }
 
+  async function doPassPeng(): Promise<void> {
+    try {
+      const result = await passPeng(gameId.value);
+      applyEffectFromPayload(result);
+      await refreshGame();
+    } catch (error) {
+      ui.push(error instanceof Error ? error.message : "跳过碰牌失败", "error");
+    }
+  }
+
   onMounted(() => {
     const token = getStoredToken();
     if (token) {
@@ -268,5 +278,6 @@ export function useGameView() {
     doDiscard,
     doTsumo,
     doPeng,
+    doPassPeng,
   };
 }

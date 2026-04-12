@@ -18,7 +18,7 @@ async def my_history(
     user=Depends(get_current_user),
 ):
     payload = await HistoryService(db).get_my_history(user_id=user.id, page=page, size=size)
-    return ok(payload)
+    return ok(payload.model_dump())
 
 
 @router.get("/matches/{match_id}")
@@ -28,4 +28,4 @@ async def match_detail(
     user=Depends(get_current_user),
 ):
     payload = await HistoryService(db).get_match_detail(user_id=user.id, match_id=match_id)
-    return ok(payload)
+    return ok(payload.model_dump())
