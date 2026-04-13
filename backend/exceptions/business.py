@@ -104,3 +104,8 @@ class HistoryNotReady(BusinessError):
 class MatchHistoryNotFound(BusinessError):
     def __init__(self):
         super().__init__(code=40403, message="match history not found", http_status=404)
+
+
+class TooManyRequests(BusinessError):
+    def __init__(self):
+        super().__init__(code=42901, message="too many requests", http_status=429)

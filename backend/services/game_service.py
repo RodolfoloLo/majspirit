@@ -22,15 +22,15 @@ from backend.ws.events import GAME_DISCARDED, GAME_MATCH_END, GAME_PENG, GAME_RO
 
 SEAT_COUNT = 4
 INITIAL_SCORE = 25000
-BOT_ACTION_GUARD = 80
 
 
 class GameService:
     def __init__(self):
         self.game_id_counter = count(9001)
         self.match_id_counter = count(5001)
-        self._games: dict[int, RuntimeGameState] = {}
-        self._locks: dict[int, asyncio.Lock] = {}
+        #geme是 游戏ID,match是 比赛ID,
+        self._games: dict[int, RuntimeGameState] = {} #内存中的游戏状态字典,key是game_id,value是游戏的运行时状态,所有的游戏状态都存在内存里.
+        self._locks: dict[int, asyncio.Lock] = {} #每个游戏对应的异步锁,这是为了并发安全!因为异步服务可能同时收到同一个游戏的多个请求,如果不加锁,会导致状态被并发修改,出现数据不一致的问题,所以每一个游戏有一个独立的锁,保证同一个游戏是串行的.
 
     def lock_for(self, game_id: int) -> asyncio.Lock:
         if game_id not in self._locks:
@@ -107,6 +107,21 @@ class GameService:
         state = self._games.get(game_id)
         if not state:
             raise GameNotFound()
+        return state
+
+    #检查游戏是否存在
+    def has_game(self, game_id: int) -> bool:
+        return game_id in self._games
+
+    #导出游戏状态为字典
+    def export_game_state(self, game_id: int) -> dict[str, Any]:
+        state = self.require_game(game_id)
+        return state.model_dump()
+
+    #从字典导入游戏状态,并存储在内存中
+    def import_game_state(self, payload: dict[str, Any]) -> RuntimeGameState:
+        state = RuntimeGameState.model_validate(payload)
+        self._games[state.game_id] = state
         return state
 
     def next_seat(self, seat: int) -> int:

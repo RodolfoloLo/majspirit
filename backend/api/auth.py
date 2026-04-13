@@ -4,9 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.deps import get_current_user
 from backend.db.session import get_db
 from backend.core.response import ok
+from backend.exceptions.business import TooManyRequests
 from backend.schemas.auth import LoginReq, RegisterReq, LogoutResp
 from backend.schemas.user import UserResp
 from backend.services.auth_service import AuthService
+from backend.utils.rate_limit import check_rate_limit
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -14,6 +16,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register")
 async def register(payload: RegisterReq, db: AsyncSession = Depends(get_db)):
+    if not await check_rate_limit(f"auth:register:{payload.email.lower()}", window_seconds=60):
+        raise TooManyRequests()
     service = AuthService(db)
     token = await service.register(payload)
     return ok(token.model_dump())
@@ -21,6 +25,8 @@ async def register(payload: RegisterReq, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(payload: LoginReq, db: AsyncSession = Depends(get_db)):
+    if not await check_rate_limit(f"auth:login:{payload.email.lower()}", window_seconds=60):
+        raise TooManyRequests()
     service = AuthService(db)
     token = await service.login(payload)
     return ok(token.model_dump())

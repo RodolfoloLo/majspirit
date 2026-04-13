@@ -12,9 +12,16 @@ from backend.exceptions.business import (
     SeatOccupied,
 )
 from backend.repositories.room_repo import RoomRepo
+from backend.services.cache_service import CacheService
 from backend.services.game_service import game_service
 from backend.ws.events import ROOM_STARTED, ROOM_UPDATED
 from backend.ws.manager import ws_manager
+
+GAME_CACHE_TTL_SECONDS = 3600 * 6
+
+
+def game_cache_key(game_id: int) -> str:
+    return f"game:state:{game_id}"
 
 
 class RoomService:
@@ -100,6 +107,14 @@ class RoomService:
             #修改房间状态,创建游戏.
             room.status = "playing"
             game_meta = game_service.create_game(room_id=room_id, players=players)
+
+        try:
+            cache = CacheService()
+            payload = game_service.export_game_state(game_meta["game_id"])
+            await cache.set_json(game_cache_key(game_meta["game_id"]), payload, ttl_seconds=GAME_CACHE_TTL_SECONDS)
+        except Exception:
+            # Redis cache is best-effort and should not block start flow.
+            pass
 
         await ws_manager.broadcast(
             {
